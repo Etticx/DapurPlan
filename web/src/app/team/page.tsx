@@ -14,6 +14,7 @@ const permissions=[
  {action:"Edit recipes",staff:false,note:"Recipe quantities affect the shopping plan."},
  {action:"Generate forecasts and edit preparation plans",staff:false,note:"Staff can view the resulting plan."},
  {action:"Approve plans",staff:false,note:"Approvals retain the owner and time."},
+ {action:"View activity log",staff:true,note:"Owners see all activity; staff see their own changes."},
  {action:"View Team & access",staff:false,note:"Only the owner can open this page."},
 ];
 function Access({allowed}:{allowed:boolean}){return <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs ${allowed?"bg-blue-50 text-blue-700":"bg-slate-100 text-slate-500"}`}>{allowed?<Check className="size-3.5" aria-hidden="true"/>:<LockKeyhole className="size-3" aria-hidden="true"/>}{allowed?"Allowed":"Owner only"}</span>;}

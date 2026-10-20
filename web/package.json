@@ -12,7 +12,8 @@
     "test:sales": "tsx --test tests/sales.test.ts",
     "import:demo-sales": "tsx scripts/import-demo-sales.ts",
     "test:forecast": "tsx --test tests/forecast.test.ts",
-    "test:planning": "tsx --test tests/planning.test.ts"
+    "test:planning": "tsx --test tests/planning.test.ts",
+    "test:activity": "tsx --test tests/activity.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
