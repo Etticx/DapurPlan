@@ -5,11 +5,12 @@ The service loads the existing team-exported Random Forest pipeline once at star
 No database connection, retraining, inventory changes or Runpod deployment is included yet.
 
 ## How to run locally 
-'''powershell
-cd web 
+
+```powershell
+cd web
 npm install
 npm run dev
-'''
+```
 
 ## Run the prediction service (PowerShell, project root)
 
