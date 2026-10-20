@@ -8,7 +8,8 @@
     "start": "next start --hostname 127.0.0.1",
     "typecheck": "tsc --noEmit",
     "test:recipes": "tsx --test tests/recipes.test.ts",
-    "test:inventory": "tsx --test tests/inventory.test.ts"
+    "test:inventory": "tsx --test tests/inventory.test.ts",
+    "test:sales": "tsx --test tests/sales.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",

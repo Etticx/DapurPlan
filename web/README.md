@@ -104,3 +104,22 @@ Totals display recorded stock, including expired batches. No demand-based low-st
 claim, forecast, purchase suggestion or automatic stock deduction is implemented yet.
 The dashboard stays a preview; preparation and sales records are future work.
 Run `npm run test:inventory` for isolated seed, validation, persistence and rollback tests.
+
+
+## Daily sales
+
+Open `/sales` after signing in. Enter whole-number quantities for the five fixed
+menus; blank is stored as NULL (not entered), while 0 is confirmed zero sales.
+At least one quantity is required per save. Dates follow Malaysia time and cannot
+be in the future. Sales and optional sold-out flags are observational records;
+they never deduct stock and do not yet feed a model. No sales are seeded automatically.
+
+Schema migration 3 adds `sales_days`, `sales_lines` (unique date/menu), and
+`sales_history` (snapshot, actor, UTC time and version). Corrections update one
+day atomically with history. Stale versions are rejected. Authenticated GET
+`/api/sales?date=YYYY-MM-DD` returns that date and the latest 30 records; POST
+`/api/sales` saves a complete five-row form, including explicitly blank rows.
+Only the currently implemented owner session can write; staff login is future work.
+Partial days are visibly marked and must not be treated as complete training data.
+Use the date picker for older records. Run `npm run test:sales` to verify
+validation, persistence, correction history, rollback and unchanged inventory.
