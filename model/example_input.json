@@ -1,0 +1,9 @@
+[
+  {
+    "item":"Chicken rice",
+    "day_of_week":1,
+    "sales_yesterday":45.0,
+    "sales_last_week":39.0,
+    "average_previous_7_days":39.0
+  }
+]
