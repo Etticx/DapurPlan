@@ -22,3 +22,19 @@ test("sales reject negative, fractional, unknown, missing, future and all-blank 
  for(const input of [d,null,{...good,date:"2099-01-01"},{...good,date:"2026-02-30"},{...good,version:-1},{...good,lines:good.lines.slice(1)},{...good,lines:good.lines.map(()=>good.lines[0])}])assert.throws(()=>validateSales(input));
  for(const patch of [{quantity:-1},{quantity:1.5},{quantity:Infinity},{quantity:"40"},{menuId:"fake"},{quantity:null,soldOut:true},{soldOut:"yes"}])assert.throws(()=>validateSales({...good,lines:good.lines.map((l,i)=>i===0?{...l,...patch}:l)}));
 });
+
+test("six-day demo import preserves existing entries, provenance and manual seventh day",()=>{
+ const dir=mkdtempSync(join(tmpdir(),"dapur-demo-"));const store=openSalesStore(join(dir,"test.sqlite"));
+ try{
+  const existing=emptySalesDay("2026-10-16");existing.lines[0].quantity=999;
+  store.save(existing,"owner");
+  const result=store.importDemo("owner");assert.equal(result.imported.length,5);assert.deepEqual(result.skipped,["2026-10-16"]);
+  assert.equal(store.day("2026-10-16").lines[0].quantity,999);
+  assert.equal(store.day("2026-10-15").lines[0].quantity,41);
+  assert.equal(store.day("2026-10-15").provenance?.sourceDate,"2025-12-25");
+  assert.equal(store.day("2026-10-20").lines[0].quantity,45);
+  assert.equal(store.day("2026-10-21").version,0);
+  assert.equal(store.importDemo("owner").imported.length,0);
+  assert.equal(store.history("2026-10-15").length,1);
+ }finally{store.close();rmSync(dir,{recursive:true,force:true});}
+});
