@@ -27,3 +27,9 @@ export const demoStock:[IngredientId,number,Unit,number,Unit,string][]=[
  ["rice",5,"kg",5,"kg","bag"],["noodles",3,"kg",1,"kg","pack"],["chicken",4,"kg",1,"kg","pack"],["egg",40,"pieces",30,"pieces","tray"],
  ["cucumber",2,"kg",1,"kg","kg purchase"],["sprouts",0.8,"kg",1,"kg","pack"],["sambal",1,"kg",1,"kg","pack"],["peanuts",0.5,"kg",1,"kg","pack"],["anchovies",0.5,"kg",0.5,"kg","pack"],
  ["oil",2,"L",5,"L","bottle"],["soy",1,"L",1,"L","bottle"],["coconut",1,"L",1,"L","carton"],["coffee",0.5,"kg",0.5,"kg","pack"],["sugar",0.3,"kg",1,"kg","bag"],["tea",30,"pieces",100,"pieces","box"],["lemon",8,"pieces",1,"pieces","piece"],["ice",5,"kg",5,"kg","bag"]];
+
+// Hypothetical demo dates only, not recommended shelf lives.
+export function demoExpiryDate(id:IngredientId,today:string,index=0){
+ const days:Record<IngredientId,number>={rice:90,chicken:1,cucumber:1,oil:120,soy:90,noodles:1,egg:7,sprouts:-1,coconut:0,sambal:3,peanuts:60,anchovies:60,coffee:60,sugar:180,water:0,ice:2,tea:180,lemon:4};
+ return addDays(today,days[id]+(id==="chicken"?index:0));
+}

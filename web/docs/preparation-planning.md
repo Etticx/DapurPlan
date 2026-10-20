@@ -23,3 +23,13 @@ Editing an approved plan requires a new save/approval. No planning action deduct
 GET/POST /api/plan require the current owner session. UI calculations are a preview;
 the server independently validates and recalculates everything before saving.
 Dashboard shows five menu rows, shopping preview and current approval status.
+
+
+## Demo expiry setup
+
+The explicit script `npx tsx scripts/fill-demo-expiries.ts` fills only blank expiry
+fields on existing demo batches, retaining quantities, counts, packs and history.
+It skips non-demo stock and existing dates. New demo seed batches now receive dates
+as well. Dates span expired, today, tomorrow and later examples and are entirely
+hypothetical, not shelf-life recommendations. Running the app does not roll dates
+forward. Changes naturally invalidate the basis of any earlier saved plan.

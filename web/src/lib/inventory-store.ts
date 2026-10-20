@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import {randomUUID} from "node:crypto";
 import {resolve} from "node:path";
 import {openRecipeStore} from "./recipe-store";
-import {validateBatch,demoStock,addDays,malaysiaDate,type Batch,type Pack,type Inventory} from "./inventory";
+import {validateBatch,demoExpiryDate,demoStock,addDays,malaysiaDate,type Batch,type Pack,type Inventory} from "./inventory";
 export class InventoryConflictError extends Error {}
 export function openInventoryStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(process.cwd(),"data/dapurplan.sqlite")){
  // Initialise the shared ingredient catalogue before referencing its IDs.
@@ -32,9 +32,14 @@ export function openInventoryStore(filename=process.env.DAPURPLAN_DB_PATH||resol
   const today=malaysiaDate();
   for(const [ingredientId,quantity,unit,packQuantity,packUnit,packLabel] of demoStock){
    const portions=ingredientId==="chicken"?[quantity/2,quantity/2]:[quantity];
-   portions.forEach((q,index)=>{save({ingredientId,quantity:q,unit,countDate:today,expiryDate:ingredientId==="noodles"?addDays(today,1):ingredientId==="chicken"?addDays(today,index+1):null,packQuantity,packUnit,packLabel},actor,true);});
+   portions.forEach((q,index)=>{save({ingredientId,quantity:q,unit,countDate:today,expiryDate:demoExpiryDate(ingredientId,today,index),packQuantity,packUnit,packLabel},actor,true);});
   }
   return list();
  }).immediate();}
- return {list,save,seed,close:()=>db.close()};
+ function fillDemoExpiries(actor:string){if(actor!=="owner")throw new Error("Owner access required.");return db.transaction(()=>{
+  const current=list();const updated:string[]=[];
+  for(const b of current.batches){if(!b.isDemo||b.expiryDate)continue;const p=current.packs.find(p=>p.ingredientId===b.ingredientId);if(!p)throw new Error("Demo purchase pack is missing.");save({...b,expiryDate:demoExpiryDate(b.ingredientId,malaysiaDate()),packQuantity:p.quantity,packUnit:p.unit,packLabel:p.label},actor);updated.push(b.ingredientId);}
+  return {updated,preserved:current.batches.length-updated.length};
+ }).immediate();}
+ return {list,save,seed,fillDemoExpiries,close:()=>db.close()};
 }
