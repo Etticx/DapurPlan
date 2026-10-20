@@ -7,3 +7,10 @@ coverage/
 !.env.example
 next-env.d.ts
 npm-debug.log*
+
+# Local database and SQLite journal files
+data/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
