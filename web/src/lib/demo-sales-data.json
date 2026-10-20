@@ -1,0 +1,273 @@
+{
+  "sourceFile": "final_test_predictions.csv",
+  "sourceColumn": "actual_sales",
+  "sourceSha256": "cc2db842523aa8954c924b09c10d2d7a92665c9657db0bad718cf8754aa2dd4d",
+  "days": [
+    {
+      "date": "2026-10-15",
+      "sourceDate": "2025-12-25",
+      "sourceRows": [
+        327,
+        328,
+        329,
+        330,
+        331
+      ],
+      "lines": [
+        {
+          "menuId": "chicken-rice",
+          "quantity": 41,
+          "soldOut": false
+        },
+        {
+          "menuId": "kuey-teow",
+          "quantity": 30,
+          "soldOut": false
+        },
+        {
+          "menuId": "tea",
+          "quantity": 32,
+          "soldOut": false
+        },
+        {
+          "menuId": "kopi",
+          "quantity": 48,
+          "soldOut": false
+        },
+        {
+          "menuId": "nasi-lemak",
+          "quantity": 47,
+          "soldOut": false
+        }
+      ]
+    },
+    {
+      "date": "2026-10-16",
+      "sourceDate": "2025-12-26",
+      "sourceRows": [
+        332,
+        333,
+        334,
+        335,
+        336
+      ],
+      "lines": [
+        {
+          "menuId": "chicken-rice",
+          "quantity": 41,
+          "soldOut": false
+        },
+        {
+          "menuId": "kuey-teow",
+          "quantity": 30,
+          "soldOut": false
+        },
+        {
+          "menuId": "tea",
+          "quantity": 40,
+          "soldOut": false
+        },
+        {
+          "menuId": "kopi",
+          "quantity": 51,
+          "soldOut": false
+        },
+        {
+          "menuId": "nasi-lemak",
+          "quantity": 59,
+          "soldOut": false
+        }
+      ]
+    },
+    {
+      "date": "2026-10-17",
+      "sourceDate": "2025-12-27",
+      "sourceRows": [
+        337,
+        338,
+        339,
+        340,
+        341
+      ],
+      "lines": [
+        {
+          "menuId": "chicken-rice",
+          "quantity": 49,
+          "soldOut": false
+        },
+        {
+          "menuId": "kuey-teow",
+          "quantity": 43,
+          "soldOut": false
+        },
+        {
+          "menuId": "tea",
+          "quantity": 38,
+          "soldOut": false
+        },
+        {
+          "menuId": "kopi",
+          "quantity": 40,
+          "soldOut": false
+        },
+        {
+          "menuId": "nasi-lemak",
+          "quantity": 41,
+          "soldOut": false
+        }
+      ]
+    },
+    {
+      "date": "2026-10-18",
+      "sourceDate": "2025-12-28",
+      "sourceRows": [
+        342,
+        343,
+        344,
+        345,
+        346
+      ],
+      "lines": [
+        {
+          "menuId": "chicken-rice",
+          "quantity": 40,
+          "soldOut": false
+        },
+        {
+          "menuId": "kuey-teow",
+          "quantity": 31,
+          "soldOut": false
+        },
+        {
+          "menuId": "tea",
+          "quantity": 41,
+          "soldOut": false
+        },
+        {
+          "menuId": "kopi",
+          "quantity": 38,
+          "soldOut": false
+        },
+        {
+          "menuId": "nasi-lemak",
+          "quantity": 45,
+          "soldOut": false
+        }
+      ]
+    },
+    {
+      "date": "2026-10-19",
+      "sourceDate": "2025-12-29",
+      "sourceRows": [
+        347,
+        348,
+        349,
+        350,
+        351
+      ],
+      "lines": [
+        {
+          "menuId": "chicken-rice",
+          "quantity": 42,
+          "soldOut": false
+        },
+        {
+          "menuId": "kuey-teow",
+          "quantity": 30,
+          "soldOut": false
+        },
+        {
+          "menuId": "tea",
+          "quantity": 33,
+          "soldOut": false
+        },
+        {
+          "menuId": "kopi",
+          "quantity": 53,
+          "soldOut": false
+        },
+        {
+          "menuId": "nasi-lemak",
+          "quantity": 58,
+          "soldOut": false
+        }
+      ]
+    },
+    {
+      "date": "2026-10-20",
+      "sourceDate": "2025-12-30",
+      "sourceRows": [
+        352,
+        353,
+        354,
+        355,
+        356
+      ],
+      "lines": [
+        {
+          "menuId": "chicken-rice",
+          "quantity": 45,
+          "soldOut": false
+        },
+        {
+          "menuId": "kuey-teow",
+          "quantity": 28,
+          "soldOut": false
+        },
+        {
+          "menuId": "tea",
+          "quantity": 28,
+          "soldOut": false
+        },
+        {
+          "menuId": "kopi",
+          "quantity": 42,
+          "soldOut": false
+        },
+        {
+          "menuId": "nasi-lemak",
+          "quantity": 43,
+          "soldOut": false
+        }
+      ]
+    },
+    {
+      "date": "2026-10-21",
+      "sourceDate": "2025-12-31",
+      "sourceRows": [
+        357,
+        358,
+        359,
+        360,
+        361
+      ],
+      "lines": [
+        {
+          "menuId": "chicken-rice",
+          "quantity": 41,
+          "soldOut": false
+        },
+        {
+          "menuId": "kuey-teow",
+          "quantity": 30,
+          "soldOut": false
+        },
+        {
+          "menuId": "tea",
+          "quantity": 36,
+          "soldOut": false
+        },
+        {
+          "menuId": "kopi",
+          "quantity": 54,
+          "soldOut": false
+        },
+        {
+          "menuId": "nasi-lemak",
+          "quantity": 50,
+          "soldOut": false
+        }
+      ]
+    }
+  ]
+}

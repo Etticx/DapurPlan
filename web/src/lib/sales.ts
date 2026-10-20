@@ -2,8 +2,8 @@ import {demoRecipes} from "./recipes";
 import {validDate,malaysiaDate} from "./inventory";
 export const salesMenus=demoRecipes.map(({id,name,category})=>({id,name,category}));
 export type SaleLine={menuId:string;quantity:number|null;soldOut:boolean};
-export type SalesDay={date:string;version:number;lines:SaleLine[];updatedBy:string|null;updatedAt:string|null};
-export type SalesSummary={date:string;version:number;entered:number;total:number;updatedAt:string};
+export type SalesDay={provenance?:{sourceFile:string;sourceDate:string;sourceRows:string}|null;date:string;version:number;lines:SaleLine[];updatedBy:string|null;updatedAt:string|null};
+export type SalesSummary={sourceDate?:string|null;date:string;version:number;entered:number;total:number;updatedAt:string};
 export type SalesData={day:SalesDay;recent:SalesSummary[]};
 export class SalesInputError extends Error {}
 export function salesDate(value:unknown){if(!validDate(value)||value>malaysiaDate())throw new SalesInputError("Choose today or an earlier valid date.");return value;}

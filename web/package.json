@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test:recipes": "tsx --test tests/recipes.test.ts",
     "test:inventory": "tsx --test tests/inventory.test.ts",
-    "test:sales": "tsx --test tests/sales.test.ts"
+    "test:sales": "tsx --test tests/sales.test.ts",
+    "import:demo-sales": "tsx scripts/import-demo-sales.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
