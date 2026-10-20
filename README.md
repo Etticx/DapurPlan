@@ -4,6 +4,14 @@ Next.js web app in `web/`; Python forecasting service in `src/dapurplan/api.py`.
 The service loads the existing team-exported Random Forest pipeline once at startup.
 No database connection, retraining, inventory changes or Runpod deployment is included yet.
 
+## How to run locally 
+
+```powershell
+cd web
+npm install
+npm run dev
+```
+
 ## Run the prediction service (PowerShell, project root)
 
 Using the existing `venv`:
@@ -60,3 +68,4 @@ $env:PYTHONPATH = "src"
 Tests compare HTTP responses against direct pipeline predictions, validate five-item
 batches, reject invalid inputs, check clipping/non-finite outputs and missing-model startup.
 No sales records, stock or trained parameters are changed by these tests.
+
