@@ -2,12 +2,12 @@ import { redirect } from "next/navigation";
 import { Brand } from "@/components/brand";
 import { KitchenIllustration } from "@/components/kitchen-illustration";
 import { LoginForm } from "@/components/login-form";
-import { getOwnerSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 
 export const metadata = { title: "Sign in | DapurPlan" };
 
 export default async function LoginPage() {
-  if (await getOwnerSession()) redirect("/home");
+  if (await getSession()) redirect("/home");
   return <main className="grid min-h-svh bg-white lg:grid-cols-[1fr_1fr]">
     <section aria-label="DapurPlan" className="relative hidden min-h-svh flex-col overflow-hidden bg-[#eaf2ff] p-10 lg:flex xl:p-12">
       <Brand />
@@ -20,7 +20,7 @@ export default async function LoginPage() {
       </div>
       <p className="text-xs text-[#6c83a3]">Made for your everyday kitchen.</p>
     </section>
-    <section aria-label="Owner sign in" className="relative flex min-h-svh flex-col px-6 pb-6 pt-7 sm:px-10 lg:px-12">
+    <section aria-label="Workspace sign in" className="relative flex min-h-svh flex-col px-6 pb-6 pt-7 sm:px-10 lg:px-12">
       <div className="lg:hidden"><Brand /></div>
       <div className="flex flex-1 items-center justify-center py-12 lg:py-20">
         <div className="w-full max-w-[370px]">

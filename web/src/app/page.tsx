@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { getOwnerSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 
 export default async function Page() {
-  redirect((await getOwnerSession()) ? "/home" : "/login");
+  redirect((await getSession()) ? "/home" : "/login");
 }

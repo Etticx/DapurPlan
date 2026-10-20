@@ -23,7 +23,7 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
  function recent():SalesSummary[]{return db.prepare("SELECT d.date,d.version,p.source_date AS sourceDate,d.updated_at AS updatedAt,COUNT(l.quantity) AS entered,COALESCE(SUM(l.quantity),0) AS total FROM sales_days d JOIN sales_lines l ON l.date=d.date LEFT JOIN sales_provenance p ON p.date=d.date GROUP BY d.date ORDER BY d.date DESC LIMIT 30").all() as SalesSummary[];}
  function history(date:string){salesDate(date);return db.prepare("SELECT version,changed_by AS changedBy,changed_at AS changedAt,snapshot FROM sales_history WHERE date=? ORDER BY version DESC").all(date);}
  function save(value:unknown,actor:string,demoDate?:string){
-  const v=validateSales(value);if(actor!=="owner")throw new Error("Owner access required.");
+  const v=validateSales(value);if(actor!=="owner"&&actor!=="staff")throw new Error("Owner access required.");
   return db.transaction(()=>{
    if(day(v.date).version!==v.version)throw new SalesConflictError("Sales for this date changed in another window. Reload this date before saving.");
    const now=new Date().toISOString();const version=v.version+1;

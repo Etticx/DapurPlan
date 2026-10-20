@@ -45,9 +45,6 @@ export function LoginForm() {
     <Button type="submit" className="w-full" disabled={pending}>
       {pending ? <><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />Signing in...</> : <>Sign in<ArrowRight aria-hidden="true" /></>}
     </Button>
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-100 bg-blue-50/60 px-3.5 py-3 text-xs text-slate-500">
-      <span>Demo account <span className="mx-1 text-slate-300">/</span> <span className="font-medium text-slate-600">owner</span> <span className="text-slate-300">/</span> <span className="font-medium text-slate-600">123</span></span>
-      <button type="button" disabled={pending} onClick={() => { setUsername("owner"); setPassword("123"); setError(""); }} className="rounded font-semibold text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-primary">Use demo</button>
-    </div>
+    <div className="space-y-2 rounded-lg border border-blue-100 bg-blue-50/60 px-3.5 py-3 text-xs text-slate-500"><p className="mb-3">Demo accounts · password: 123</p>{(["owner","staff"] as const).map(account=><div key={account} className="flex items-center justify-between gap-3"><span className="capitalize">{account}</span><button type="button" disabled={pending} onClick={()=>{setUsername(account);setPassword("123");setError("");}} className="rounded py-1 font-semibold text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-primary">Use {account} demo</button></div>)}</div>
   </form>;
 }

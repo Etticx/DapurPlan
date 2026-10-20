@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
-import { getOwnerSession } from "@/lib/auth";
+import { getSession } from "@/lib/auth";
 import { getRecipeStore } from "@/lib/db";
 import { RecipeInputError } from "@/lib/recipe-validation";
 import { RecipeConflictError, RecipeNotFoundError } from "@/lib/recipe-store";
 export const runtime="nodejs";
 export async function PUT(request:Request,{params}:{params:Promise<{id:string}>}) {
-  const session=await getOwnerSession();
-  if (!session || session.role!=="owner") return NextResponse.json({error:"Sign in as owner."},{status:401});
+  const session=await getSession();
+  if (!session) return NextResponse.json({error:"Sign in first."},{status:401});
+  if (session.role!=="owner") return NextResponse.json({error:"Only the owner can perform this action."},{status:403});
   const origin=request.headers.get("origin");
   try {if (origin && new URL(origin).host!==request.headers.get("host")) return NextResponse.json({error:"Request not allowed."},{status:403});}
   catch {return NextResponse.json({error:"Invalid origin."},{status:403});}

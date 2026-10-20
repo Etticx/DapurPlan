@@ -3,6 +3,7 @@ import {randomUUID} from "node:crypto";
 import {resolve} from "node:path";
 import {openRecipeStore} from "./recipe-store";
 import {validateBatch,demoExpiryDate,demoStock,addDays,malaysiaDate,type Batch,type Pack,type Inventory} from "./inventory";
+export class InventoryPermissionError extends Error {}
 export class InventoryConflictError extends Error {}
 export function openInventoryStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(process.cwd(),"data/dapurplan.sqlite")){
  // Initialise the shared ingredient catalogue before referencing its IDs.
@@ -15,8 +16,12 @@ export function openInventoryStore(filename=process.env.DAPURPLAN_DB_PATH||resol
  `);db.prepare("INSERT OR IGNORE INTO schema_migrations VALUES (2,?)").run(new Date().toISOString());}).immediate();
  function list():Inventory{return {batches:db.prepare("SELECT id,ingredient_id AS ingredientId,quantity,unit,count_date AS countDate,expiry_date AS expiryDate,version,is_demo AS isDemo,updated_by AS updatedBy,updated_at AS updatedAt FROM inventory_batches ORDER BY ingredient_id,expiry_date,id").all().map(v=>{const b=v as Batch;return {...b,isDemo:Boolean(b.isDemo)};}),packs:db.prepare("SELECT ingredient_id AS ingredientId,quantity,unit,label FROM inventory_packs").all() as Pack[]};}
  function save(value:unknown,actor:string,demo=false){
-  const v=validateBatch(value);if(actor!=="owner")throw new Error("Owner access required.");
+  const v=validateBatch(value);if(actor!=="owner"&&actor!=="staff")throw new InventoryPermissionError("Sign in first.");
   return db.transaction(()=>{
+   if(actor==="staff"){
+    const pack=list().packs.find(p=>p.ingredientId===v.ingredientId);
+    if(v.id||demo||!pack||pack.quantity!==v.packQuantity||pack.unit!==v.packUnit||pack.label!==v.packLabel)throw new InventoryPermissionError("Only the owner can correct stock batches or change purchase pack settings.");
+   }
    const current=v.id?list().batches.find(b=>b.id===v.id):undefined;
    if(v.id&&(!current||current.version!==v.version))throw new InventoryConflictError("This batch changed. Reload before saving.");
    if(current&&current.ingredientId!==v.ingredientId)throw new InventoryConflictError("An existing batch cannot change ingredient.");

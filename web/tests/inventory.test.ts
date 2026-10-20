@@ -26,3 +26,14 @@ test("inventory input checks reject wrong units, water and invalid dates",()=>{
  assert.equal(validateBatch(good).quantity,5);
  for(const patch of [{ingredientId:"water"},{quantity:-1},{quantity:Infinity},{unit:"L"},{countDate:"2026-02-30"},{expiryDate:"bad"},{packQuantity:0},{packUnit:"pieces"},{ingredientId:"egg",unit:"pieces",packUnit:"pieces",quantity:1.5}])assert.throws(()=>validateBatch({...good,...patch}));
 });
+
+test("staff can add stock but cannot correct existing batches or change purchase settings",()=>{
+ const dir=mkdtempSync(join(tmpdir(),"dapur-staff-"));const store=openInventoryStore(join(dir,"test.sqlite"));
+ try{const data=store.seed("owner");const batch=data.batches.find(b=>b.ingredientId==="rice")!;const pack=data.packs.find(p=>p.ingredientId==="rice")!;
+ const input={...batch,packQuantity:pack.quantity,packUnit:pack.unit,packLabel:pack.label};
+ assert.throws(()=>store.save(input,"staff"));
+ const {id,version,...newBatch}=input;
+ assert.throws(()=>store.save({...newBatch,packQuantity:25},"staff"));
+ const saved=store.save(newBatch,"staff");assert.equal(saved.batches.length,data.batches.length+1);assert.ok(saved.batches.some(b=>b.updatedBy==="staff"));assert.throws(()=>store.seed("staff"));
+ }finally{store.close();rmSync(dir,{recursive:true,force:true});}
+});

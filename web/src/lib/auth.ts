@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 export const SESSION_COOKIE = "dapurplan_session";
 export const SESSION_SECONDS = 8 * 60 * 60;
 const DEV_SECRET = "dapurplan-local-prototype-session-secret-only";
-type OwnerSession = { username: "owner"; role: "owner"; expiresAt: number };
+export type Session = { username: "owner" | "staff"; role: "owner" | "staff"; expiresAt: number };
 
 function secret() {
   const value = process.env.DEMO_SESSION_SECRET?.trim();
@@ -18,13 +18,13 @@ function sign(value: string) {
   return createHmac("sha256", secret()).update(value).digest("base64url");
 }
 
-export function createOwnerSession() {
-  const session: OwnerSession = { username: "owner", role: "owner", expiresAt: Date.now() + SESSION_SECONDS * 1000 };
+export function createSession(username: "owner" | "staff") {
+  const session: Session = { username, role: username, expiresAt: Date.now() + SESSION_SECONDS * 1000 };
   const body = Buffer.from(JSON.stringify(session)).toString("base64url");
   return `${body}.${sign(body)}`;
 }
 
-export function verifySession(token: string | undefined): OwnerSession | null {
+export function verifySession(token: string | undefined): Session | null {
   if (!token) return null;
   try {
     const parts = token.split(".");
@@ -33,12 +33,12 @@ export function verifySession(token: string | undefined): OwnerSession | null {
     const actual = Buffer.from(signature);
     const expected = Buffer.from(sign(body));
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
-    const session = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as OwnerSession;
-    if (session.username !== "owner" || session.role !== "owner" || !Number.isFinite(session.expiresAt) || session.expiresAt <= Date.now()) return null;
+    const session = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as Session;
+    if ((session.username !== "owner" && session.username !== "staff") || session.role !== session.username || !Number.isFinite(session.expiresAt) || session.expiresAt <= Date.now()) return null;
     return session;
   } catch { return null; }
 }
 
-export async function getOwnerSession() {
+export async function getSession() {
   return verifySession((await cookies()).get(SESSION_COOKIE)?.value);
 }
