@@ -37,3 +37,16 @@ npm run build
 4. Forecast, recipes, stock and reviewed purchases (later).
 
 Replit hosting and Runpod inference are later integration steps.
+
+## Prototype login
+
+- Username: `owner`
+- Password: `123`
+- `/login` accepts the demo account; `/home` checks the signed session on the server.
+- Sign out clears the HttpOnly session cookie; sessions expire after 8 hours.
+- This is simulated owner authentication for the prototype, not a real account system.
+- Before publishing, set `DEMO_SESSION_SECRET` to a random value of at least 32 characters.
+- Staff roles, real accounts and restaurant features are future commits.
+
+UI primitives use shadcn/ui's open-code conventions (MIT), Radix Slot, CVA and Tailwind.
+Icons are from Lucide; the kitchen illustration is an original SVG.
