@@ -80,3 +80,27 @@ is not multi-user production authentication. Recipe history is retained; a full 
 log screen and preparation records will be added separately.
 
 Run recipe checks with `npm run test:recipes`. Tests use a temporary database, including a forced history-write failure to verify rollback.
+
+
+## Inventory
+
+Open `/inventory` after signing in. Closing counts are saved in the same SQLite
+database as recipes. Schema migration 2 adds `inventory_batches`, `inventory_packs`,
+and `inventory_history`. Saves and corrections (including pack settings and history)
+are atomic. Existing batches require their current version; corrections retain history.
+Owner-authenticated GET/POST `/api/inventory` load/save data. There is no sales deduction.
+
+Use **Load demo stock** once on an empty inventory to add the agreed 17 ingredients
+in 18 batches, including two chicken batches with separate hypothetical expiries.
+Dates are relative to the Malaysia date when loaded. Other expiry dates remain blank
+until checked against packaging. Demo provenance remains marked after correction.
+An occupied inventory cannot be seeded, so demo loading never overwrites user stock.
+Add only a batch's remaining amount, not the whole ingredient balance again. Set an
+exhausted batch to zero; no permanent deletion is provided. Purchase pack settings
+apply across batches of the ingredient. Quantities are internally convertible to
+grams/millilitres/pieces; pieces require whole numbers in stock.
+
+Totals display recorded stock, including expired batches. No demand-based low-stock
+claim, forecast, purchase suggestion or automatic stock deduction is implemented yet.
+The dashboard stays a preview; preparation and sales records are future work.
+Run `npm run test:inventory` for isolated seed, validation, persistence and rollback tests.
