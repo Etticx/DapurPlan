@@ -1,16 +1,16 @@
 [project]
-name = "wasteprotect"
+name = "DapurPlan"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "Ettic", email = "muhdalifasyraf46@gmail.com" }
+    { name = "Ettic", email = "alifasyraf0911@gmail.com" }
 ]
 requires-python = ">=3.12"
 dependencies = []
 
 [project.scripts]
-wasteprotect = "wasteprotect:main"
+DapurPlan = "DapurPlan:main"
 
 [build-system]
 requires = ["uv_build>=0.12.13,<0.13.0"]
