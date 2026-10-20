@@ -1,3 +1,4 @@
+import {demoAccounts} from "@/lib/accounts";
 import { NextResponse } from "next/server";
 import { createSession, SESSION_COOKIE, SESSION_SECONDS } from "@/lib/auth";
 
@@ -13,7 +14,7 @@ export async function POST(request: Request) {
   if (typeof body?.username !== "string" || typeof body?.password !== "string") {
     return NextResponse.json({ error: "Enter your username and password." }, { status: 400 });
   }
-  if (!["owner", "staff"].includes(body.username.trim()) || body.password !== "123") {
+  if (!demoAccounts.some(account=>account.username===String(body.username).trim()) || body.password !== "123") {
     return NextResponse.json({ error: "Username or password is incorrect." }, { status: 401 });
   }
   try {
