@@ -1,20 +1,14 @@
 import { redirect } from "next/navigation";
 import { ArrowRight, BarChart3, BookOpen, CalendarDays, CheckCheck, ChevronRight, ClipboardList, Clock3, History, LayoutDashboard, Leaf, Package, Plus, ShieldCheck, ShoppingBasket, Sparkles, UtensilsCrossed } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Brand } from "@/components/brand";
+import { WorkspaceSidebar } from "@/components/workspace-sidebar";
 import { LogoutButton } from "@/components/logout-button";
 import { Button } from "@/components/ui/button";
 import { getOwnerSession } from "@/lib/auth";
 
 export const metadata = { title: "Overview | DapurPlan" };
 
-const navigation = [
-  { label: "Daily sales", icon: BarChart3 },
-  { label: "Inventory", icon: Package },
-  { label: "Recipes", icon: BookOpen },
-  { label: "Tomorrow’s plan", icon: CalendarDays },
-  { label: "Activity log", icon: History },
-];
+
 
 function EmptyState({ icon: Icon, title, description }: { icon: LucideIcon; title: string; description: string }) {
   return <div className="flex min-h-52 flex-col items-center justify-center px-6 py-9 text-center">
@@ -30,17 +24,7 @@ export default async function HomePage() {
 
   return <div className="min-h-svh lg:flex">
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:p-4">Skip to content</a>
-    <aside className="flex flex-col border-b border-border bg-white lg:fixed lg:inset-y-0 lg:w-60 lg:border-r lg:border-b-0">
-      <div className="px-6 py-7"><Brand /><p className="mt-3 pl-0.5 text-xs text-muted-foreground">Your everyday kitchen companion</p></div>
-      <nav aria-label="Main navigation" className="flex gap-1 overflow-x-auto px-3 pb-4 lg:flex-col lg:px-4">
-        <a href="/home" aria-current="page" className="flex shrink-0 items-center gap-3 rounded-xl bg-secondary px-4 py-3 text-sm font-semibold text-primary"><LayoutDashboard className="size-[18px]" aria-hidden="true" />Overview<span className="ml-auto hidden size-1.5 rounded-full bg-primary lg:block" /></a>
-        {navigation.map(({ label, icon: Icon }) => <button key={label} type="button" disabled title="Coming in a later step" className="flex shrink-0 cursor-not-allowed items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-slate-400"><Icon className="size-[18px]" aria-hidden="true" />{label}</button>)}
-      </nav>
-      <div className="mt-auto hidden px-5 pb-6 lg:block">
-        <div className="rounded-2xl border border-blue-100 bg-background p-4"><Leaf className="mb-3 size-5 text-blue-500" strokeWidth={1.6} aria-hidden="true" /><p className="text-xs font-semibold">A little less waste.</p><p className="mt-1 text-xs leading-5 text-muted-foreground">A little more peace of mind.</p></div>
-        <div className="mt-5 flex items-center gap-3 border-t border-border pt-5"><span className="grid size-9 place-items-center rounded-full bg-secondary text-sm font-semibold text-primary">O</span><div><p className="text-sm font-medium">Owner</p><p className="mt-0.5 text-xs text-muted-foreground">Owner workspace</p></div><ShieldCheck className="ml-auto size-4 text-slate-400" aria-label="Owner access" /></div>
-      </div>
-    </aside>
+    <WorkspaceSidebar active="Overview" />
 
     <div className="min-w-0 flex-1 lg:ml-60">
       <header className="flex h-20 items-center justify-between border-b border-border bg-white/80 px-5 sm:px-8"><div className="flex items-center gap-2 text-sm"><span className="text-muted-foreground">Workspace</span><ChevronRight className="size-3.5 text-slate-400" aria-hidden="true" /><span className="font-medium">Overview</span></div><LogoutButton /></header>
