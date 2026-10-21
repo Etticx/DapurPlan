@@ -24,7 +24,20 @@ test("demo inventory seeds once, survives reopening and never deducts sales",()=
 test("inventory input checks reject wrong units, water and invalid dates",()=>{
  const good={ingredientId:"rice",quantity:5,unit:"kg",countDate:malaysiaDate(),expiryDate:null,packQuantity:5,packUnit:"kg",packLabel:"bag"};
  assert.equal(validateBatch(good).quantity,5);
- for(const patch of [{ingredientId:"water"},{quantity:-1},{quantity:Infinity},{unit:"L"},{countDate:"2026-02-30"},{expiryDate:"bad"},{packQuantity:0},{packUnit:"pieces"},{ingredientId:"egg",unit:"pieces",packUnit:"pieces",quantity:1.5}])assert.throws(()=>validateBatch({...good,...patch}));
+ for(const patch of [{ingredientId:"water"},{quantity:-1},{quantity:Infinity},{unit:"L"},{countDate:"2026-02-30"},{expiryDate:"bad"},{packQuantity:0},{packUnit:"pieces"},{packCostCents:-1},{packCostCents:1.5},{ingredientId:"egg",unit:"pieces",packUnit:"pieces",quantity:1.5}])assert.throws(()=>validateBatch({...good,...patch}));
+});
+
+test("purchase pack costs persist and only owners can change costs",()=>{
+ const dir=mkdtempSync(join(tmpdir(),"dapur-costs-"));const store=openInventoryStore(join(dir,"test.sqlite"));
+ try{
+  let data=store.seed("owner");const rice=data.batches.find(batch=>batch.ingredientId==="rice")!;const pack=data.packs.find(item=>item.ingredientId==="rice")!;
+  data=store.save({...rice,packQuantity:pack.quantity,packUnit:pack.unit,packLabel:pack.label,packCostCents:1250},"owner");
+  assert.equal(data.packs.find(item=>item.ingredientId==="rice")?.costCents,1250);
+  data=store.saveWaterCost({costCents:150},"owner");
+  assert.deepEqual(data.packs.find(item=>item.ingredientId==="water"),{ingredientId:"water",quantity:1,unit:"L",label:"litre",costCents:150});
+  assert.throws(()=>store.saveWaterCost({costCents:150},"staff"));
+  assert.throws(()=>store.saveWaterCost({costCents:1.5},"owner"));
+ }finally{store.close();rmSync(dir,{recursive:true,force:true});}
 });
 
 test("staff can add stock but cannot correct existing batches or change purchase settings",()=>{

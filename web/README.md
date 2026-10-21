@@ -99,13 +99,18 @@ until checked against packaging. Demo provenance remains marked after correction
 An occupied inventory cannot be seeded, so demo loading never overwrites user stock.
 Add only a batch's remaining amount, not the whole ingredient balance again. Set an
 exhausted batch to zero; no permanent deletion is provided. Purchase pack settings
-apply across batches of the ingredient. Quantities are internally convertible to
-grams/millilitres/pieces; pieces require whole numbers in stock.
+apply across batches of the ingredient. Owners can record the purchase cost per pack;
+these costs are used for recipe cost estimates, not as an inventory deduction or
+valuation of remaining stock. Water remains untracked for stock but has an optional
+cost-per-litre setting. Pack costs are stored in integer cents; pieces require whole
+numbers in stock.
 
 Totals display recorded stock, including expired batches. No demand-based low-stock
 claim, forecast, purchase suggestion or automatic stock deduction is implemented yet.
-The dashboard stays a preview; preparation and sales records are future work.
-Run `npm run test:inventory` for isolated seed, validation, persistence and rollback tests.
+The dashboard stays a preview; preparation planning remains a separate feature.
+Migration 7 adds optional ingredient pack cost. Migration 9 adds change history for
+the untracked water cost. Run `npm run test:inventory` for isolated seed, validation,
+cost persistence and rollback tests.
 
 
 ## Daily sales
@@ -113,21 +118,35 @@ Run `npm run test:inventory` for isolated seed, validation, persistence and roll
 Open `/sales` after signing in. Enter whole-number quantities for the five fixed
 menus; blank is stored as NULL (not entered), while 0 is confirmed zero sales.
 At least one quantity is required per save. Dates follow Malaysia time and cannot
-be in the future. The page shows total revenue and servings sold for the selected day,
-revenue by menu item, and changes against the previous calendar day. Revenue uses the
-configured selling price and the saved quantity; each sale retains the per-item price
-in effect when it was first recorded, so later menu price changes do not rewrite past
-revenue. Items without configured prices are called out rather than counted as zero.
-Sales and optional sold-out flags are observational records; they never deduct stock
-and do not yet feed a model. No sales are seeded automatically.
+be in the future. Owners configure per-serving selling prices in Recipes and ingredient
+purchase pack costs in Inventory. Recipe costs derive from ingredient quantities,
+pack sizes and pack costs. Set water cost per litre separately because water is not
+stock-tracked. The recipe editor shows ingredient batch costs and estimated cost per
+serving; missing prices leave totals explicitly incomplete.
 
-Schema migration 3 adds `sales_days`, `sales_lines` (unique date/menu), and
-`sales_history` (snapshot, actor, UTC time and version); migration 6 adds the
-per-item price snapshot used for revenue. Corrections update one
-day atomically with history. Stale versions are rejected. Authenticated GET
-`/api/sales?date=YYYY-MM-DD` returns that date and the latest 30 records; POST
-`/api/sales` saves a complete five-row form, including explicitly blank rows.
-Only the currently implemented owner session can write; staff login is future work.
+Daily sales show per-menu revenue, ingredient cost for servings sold, and profit
+contribution. The P&L totals revenue, ingredient costs, gross profit, manually recorded
+other expenses, and estimated net profit. Record expenses by category, amount, and
+optional note. Daily, weekly, and monthly trends include revenue, ingredient costs,
+expenses, gross profit, and estimated net profit. Expense edits use a version check and
+are retained in application history.
+
+Each sale snapshots the selling price, recipe quantities, pack costs and estimated
+ingredient cost per serving on first entry. Corrections keep those original cost
+snapshots, so later recipe or pack price edits do not rewrite past P&L. Missing selling
+or ingredient costs are shown as incomplete, not treated as zero. Sales and optional
+sold-out flags never deduct stock and do not yet feed a model. No sales are seeded
+automatically.
+
+Schema migrations 3 and 4 add sales records, versioned history and demo provenance;
+migration 6 adds per-item selling-price snapshots, and migration 8 adds recipe-cost
+snapshots and daily expense/history tables. Sales and expense updates are atomic and
+reject stale versions. Authenticated GET `/api/sales?date=YYYY-MM-DD&trend=daily`
+returns the selected date, previous day, latest records and requested trend. POST
+`/api/sales` saves the complete five-row form; POST `/api/sales/expenses` replaces that
+date’s expense list. Owner and staff sessions can record sales and expenses; only
+owners can change selling and purchase prices.
 Partial days are visibly marked and must not be treated as complete training data.
-Use the date picker for older records. Run `npm run test:sales` to verify
-validation, persistence, correction history, rollback and unchanged inventory.
+Use the date picker for older records. Run `npm run test:sales` to verify validation,
+price/cost snapshots, expenses, profit aggregation, trends, correction history,
+rollback and unchanged inventory.

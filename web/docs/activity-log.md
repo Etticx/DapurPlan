@@ -1,14 +1,15 @@
 # Activity log
 
 /activity and authenticated GET /api/activity aggregate existing recipe_versions,
-sales_history, inventory_history, forecasts and preparation_plans. No synthetic
+sales_history, daily_expense_history, inventory_history, ingredient_cost_history,
+forecasts and preparation_plans. No synthetic
 history is invented and source records are not rewritten. Schema setup is reused
 on first access; the actual log connection is read-only.
 
 Owners can view the entire kitchen history and filter by owner/staff/system. Staff
 are restricted server-side to their own actions, regardless of requested filters.
-Actions include creating/correcting sales, recipe versions, stock batches, forecasts,
-drafts and approvals. Details show recorded before/after values from the prior
+Actions include creating/correcting sales and expenses, recipe versions, stock batches,
+ingredient pack and water costs, forecasts, drafts and approvals. Details show recorded before/after values from the prior
 version of that same entity. Forecast details show outputs; a first event has no
 previous value. Unchanged saves are explicitly described as no quantity changes.
 

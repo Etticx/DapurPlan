@@ -4,7 +4,7 @@ import {mkdtempSync,rmSync} from "node:fs";import {tmpdir} from "node:os";import
 import {openSalesStore} from "../src/lib/sales-store";
 import {openInventoryStore} from "../src/lib/inventory-store";
 import {openRecipeStore} from "../src/lib/recipe-store";
-import {validateSales,emptySalesDay} from "../src/lib/sales";
+import {validateSales,validateExpenses,emptySalesDay} from "../src/lib/sales";
 import {addDays,malaysiaDate} from "../src/lib/inventory";
 test("sales preserve blanks, persist corrections once per date and never change inventory",()=>{
  const dir=mkdtempSync(join(tmpdir(),"dapur-sales-"));const path=join(dir,"test.sqlite");const inventory=openInventoryStore(path);let store=openSalesStore(path);const raw=new Database(path);
@@ -22,6 +22,8 @@ test("sales reject negative, fractional, unknown, missing, future and all-blank 
  const d=emptySalesDay(malaysiaDate());const good={...d,lines:d.lines.map((l,i)=>({...l,quantity:i===0?0:null}))};assert.equal(validateSales(good).lines[0].quantity,0);
  for(const input of [d,null,{...good,date:"2099-01-01"},{...good,date:"2026-02-30"},{...good,version:-1},{...good,lines:good.lines.slice(1)},{...good,lines:good.lines.map(()=>good.lines[0])}])assert.throws(()=>validateSales(input));
  for(const patch of [{quantity:-1},{quantity:1.5},{quantity:Infinity},{quantity:"40"},{menuId:"fake"},{quantity:null,soldOut:true},{soldOut:"yes"}])assert.throws(()=>validateSales({...good,lines:good.lines.map((l,i)=>i===0?{...l,...patch}:l)}));
+ assert.equal(validateExpenses({date:malaysiaDate(),version:0,expenses:[{category:"Rent",amountCents:100,note:""}]}).expenses[0].amountCents,100);
+ for(const expenses of [null,[{category:"x",amountCents:100,note:""}],[{category:"Rent",amountCents:0,note:""}],[{category:"Rent",amountCents:101,note:"x".repeat(121)}]])assert.throws(()=>validateExpenses({date:malaysiaDate(),version:0,expenses}));
 });
 
 test("daily revenue snapshots menu prices and compares with the previous calendar day",()=>{
@@ -43,6 +45,36 @@ test("daily revenue snapshots menu prices and compares with the previous calenda
   assert.equal(corrected.day.lines[0].unitPriceCents,2500);
   assert.equal(corrected.recent.find(day=>day.date===previousDate)?.revenueCents,10000);
  }finally{recipes.close();store.close();rmSync(dir,{recursive:true,force:true});}
+});
+
+test("daily profit snapshots recipe costs, includes expenses, and aggregates trends",()=>{
+ const dir=mkdtempSync(join(tmpdir(),"dapur-profit-"));const path=join(dir,"test.sqlite");const store=openSalesStore(path);const recipes=openRecipeStore(path);const inventory=openInventoryStore(path);
+ try{
+  let stocks=inventory.seed("owner");const rice=stocks.batches.find(batch=>batch.ingredientId==="rice")!;const pack=stocks.packs.find(item=>item.ingredientId==="rice")!;
+  stocks=inventory.save({...rice,packQuantity:1,packUnit:"kg",packLabel:"bag",packCostCents:2000},"owner");
+  const recipe=recipes.list()[0];recipes.update(recipe.id,{...recipe,priceCents:3000,servings:2,lines:[{ingredientId:"rice",quantity:2,unit:"kg"}]},"owner");
+  const previousDate=addDays(malaysiaDate(),-1);const today=malaysiaDate();
+  const previous=emptySalesDay(previousDate);previous.lines[0].quantity=1;store.save(previous,"owner");
+  const current=emptySalesDay(today);current.lines[0].quantity=3;const saved=store.save(current,"owner");
+  assert.equal(saved.day.lines[0].ingredientCostPerServingCents,2000);
+  assert.equal(saved.day.lines[0].costSnapshot?.ingredients[0].quantity,2);
+  const expenseSaved=store.saveExpenses({date:today,version:0,expenses:[{category:"Utilities",amountCents:1000,note:"Power"}]},"owner");
+  assert.equal(expenseSaved.expenses[0].amountCents,1000);
+  const daily=store.financial(today);
+  assert.equal(daily.revenueCents,9000);assert.equal(daily.ingredientCostCents,6000);assert.equal(daily.grossProfitCents,3000);assert.equal(daily.expensesCents,1000);assert.equal(daily.netProfitCents,2000);
+  recipes.update(recipe.id,{...recipes.list()[0],priceCents:5000,servings:4,lines:[{ingredientId:"rice",quantity:4,unit:"kg"}]},"owner");
+  const latestRice=inventory.list().batches.find(batch=>batch.ingredientId==="rice")!;
+  inventory.save({...latestRice,packQuantity:1,packUnit:"kg",packLabel:"bag",packCostCents:4000},"owner");
+  const corrected=store.save({...saved.day,lines:saved.day.lines.map((line,index)=>index===0?{...line,quantity:4}:line)},"owner");
+  assert.equal(corrected.day.lines[0].unitPriceCents,3000);
+  assert.equal(corrected.day.lines[0].ingredientCostPerServingCents,2000);
+  assert.equal(corrected.day.lines[0].costSnapshot?.batchCostCents,4000);
+  assert.equal(store.financial(today).netProfitCents,3000);
+  const weekday=new Date(today+"T00:00:00Z").getUTCDay();const weekStart=addDays(today,-((weekday+6)%7));
+  assert.equal(store.trend("weekly",today).find(period=>period.date===weekStart)?.netProfitCents,4000);
+  assert.equal(store.trend("monthly",today).find(period=>period.date===today.slice(0,7))?.netProfitCents,4000);
+  assert.throws(()=>store.saveExpenses({date:today,version:0,expenses:[]},"owner"),/changed/);
+ }finally{inventory.close();recipes.close();store.close();rmSync(dir,{recursive:true,force:true});}
 });
 
 test("six-day demo import preserves existing entries, provenance and manual seventh day",()=>{

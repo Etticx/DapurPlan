@@ -6,10 +6,14 @@ import type {ActivityFilter,ActivityEvent,ActivityResult,ActivityType} from "./a
 const union=`
  SELECT 'sales' AS type, date||':'||version AS id,changed_by AS actor,changed_at AS at,snapshot,
  (SELECT p.snapshot FROM sales_history p WHERE p.date=h.date AND p.version<h.version ORDER BY version DESC LIMIT 1) AS previous FROM sales_history h
+ UNION ALL SELECT 'expenses',date||':'||version,changed_by,changed_at,snapshot,
+ (SELECT p.snapshot FROM daily_expense_history p WHERE p.date=h.date AND p.version<h.version ORDER BY version DESC LIMIT 1) FROM daily_expense_history h
  UNION ALL SELECT 'recipes',menu_id||':'||version,changed_by,changed_at,snapshot,
  (SELECT p.snapshot FROM recipe_versions p WHERE p.menu_id=h.menu_id AND p.version<h.version ORDER BY version DESC LIMIT 1) FROM recipe_versions h
  UNION ALL SELECT 'inventory',CAST(id AS TEXT),changed_by,changed_at,snapshot,
  (SELECT p.snapshot FROM inventory_history p WHERE p.batch_id=h.batch_id AND p.id<h.id ORDER BY id DESC LIMIT 1) FROM inventory_history h
+ UNION ALL SELECT 'costs',CAST(id AS TEXT),changed_by,changed_at,snapshot,
+ (SELECT p.snapshot FROM ingredient_cost_history p WHERE p.ingredient_id=h.ingredient_id AND p.id<h.id ORDER BY id DESC LIMIT 1) FROM ingredient_cost_history h
  UNION ALL SELECT 'forecast',CAST(id AS TEXT),created_by,created_at,snapshot,NULL FROM forecasts
  UNION ALL SELECT 'plans',CAST(id AS TEXT),created_by,created_at,snapshot,
  (SELECT p.snapshot FROM preparation_plans p WHERE p.target_date=h.target_date AND p.id<h.id ORDER BY id DESC LIMIT 1) FROM preparation_plans h`;
@@ -24,6 +28,14 @@ function format(raw:RawEvent):ActivityEvent{
  if(raw.type==="sales"){
   title=old?"Corrected daily sales":"Recorded daily sales";subject=now.date;demo=!!now.provenance;
   for(const line of now.lines||[]){const previous=old?.lines?.find((l:{menuId:string})=>l.menuId===line.menuId);add(menuName(line.menuId),previous?previous.quantity===null?"Not entered":previous.quantity:undefined,line.quantity===null?"Not entered":line.quantity);add(`${menuName(line.menuId)} · sold out`,previous?previous.soldOut?"Yes":"No":undefined,line.soldOut?"Yes":"No");}
+  for(const line of now.lines||[]){const previous=old?.lines?.find((l:{menuId:string})=>l.menuId===line.menuId);add(`${menuName(line.menuId)} · selling price / serving`,previous?.unitPriceCents===undefined?undefined:previous.unitPriceCents===null?"Not set":`RM ${(previous.unitPriceCents/100).toFixed(2)}`,line.unitPriceCents===null?"Not set":`RM ${(line.unitPriceCents/100).toFixed(2)}`);add(`${menuName(line.menuId)} · ingredient cost / serving`,previous?.ingredientCostPerServingCents===undefined?undefined:previous.ingredientCostPerServingCents===null?"Incomplete":`RM ${(previous.ingredientCostPerServingCents/100).toFixed(2)}`,line.ingredientCostPerServingCents===null?"Incomplete":`RM ${(line.ingredientCostPerServingCents/100).toFixed(2)}`);}
+ }else if(raw.type==="expenses"){
+  title=old?"Updated daily expenses":"Recorded daily expenses";subject=now.date;
+  const before=old?.expenses||[],after=now.expenses||[];
+  for(let index=0;index<Math.max(before.length,after.length);index++){
+   const a=before[index],b=after[index];const label=`Expense ${index+1}`;
+   add(label,a?`${a.category} · ${(a.amountCents/100).toFixed(2)} · ${a.note||"No note"}`:undefined,b?`${b.category} · ${(b.amountCents/100).toFixed(2)} · ${b.note||"No note"}`:"Removed");
+  }
  }else if(raw.type==="recipes"){
   title=raw.actor.startsWith("system:")?"Created demo recipe":"Updated recipe";subject=now.name||menuName(now.id);demo=!!now.isDemo;
   add("Servings per batch",old?.servings,now.servings);
@@ -34,6 +46,10 @@ function format(raw:RawEvent):ActivityEvent{
   add("Remaining quantity",old?`${old.batch.quantity} ${old.batch.unit}`:undefined,`${now.batch.quantity} ${now.batch.unit}`);
   add("Closing count date",old?.batch.countDate,now.batch.countDate);add("Expiry date",old?.batch.expiryDate,now.batch.expiryDate||"Not recorded");
   add("Purchase pack",old?.pack?`${old.pack.quantity} ${old.pack.unit} / ${old.pack.label}`:undefined,`${now.pack.quantity} ${now.pack.unit} / ${now.pack.label}`);
+  add("Purchase pack cost",old?.pack?.costCents===undefined?undefined:old.pack.costCents===null?"Not set":`RM ${(old.pack.costCents/100).toFixed(2)}`,now.pack.costCents===null?"Not set":`RM ${(now.pack.costCents/100).toFixed(2)}`);
+ }else if(raw.type==="costs"){
+  title="Updated ingredient cost";subject=ingredientName(now.ingredientId);
+  add("Cost per litre",old?.costCents===undefined?undefined:old.costCents===null?"Not set":`RM ${(old.costCents/100).toFixed(2)}`,now.costCents===null?"Not set":`RM ${(now.costCents/100).toFixed(2)}`);
  }else if(raw.type==="forecast"){
   title="Generated serving forecast";subject=now.targetDate;demo=!!now.syntheticModel;
   for(const p of now.predictions||[])add(p.item,undefined,`${Number(p.predictedServings.toFixed(3))} servings`);

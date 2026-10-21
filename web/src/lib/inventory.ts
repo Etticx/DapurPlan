@@ -1,6 +1,6 @@
 import {ingredients,unitsFor,baseQuantity,type IngredientId,type Unit} from "./recipes";
 export type Batch={id:string;ingredientId:IngredientId;quantity:number;unit:Unit;countDate:string;expiryDate:string|null;version:number;isDemo:boolean;updatedBy:string;updatedAt:string};
-export type Pack={ingredientId:IngredientId;quantity:number;unit:Unit;label:string};
+export type Pack={ingredientId:IngredientId;quantity:number;unit:Unit;label:string;costCents?:number|null};
 export type Inventory={batches:Batch[];packs:Pack[]};
 export function malaysiaDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kuala_Lumpur",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
 export function addDays(date:string,days:number){const d=new Date(date+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);}
@@ -20,7 +20,9 @@ export function validateBatch(value:unknown){
  if(v.id!==undefined&&(typeof v.id!=="string"||!v.id||!Number.isSafeInteger(v.version)||(v.version as number)<1))throw new InventoryInputError("Reload the batch before editing.");
  if(typeof v.packQuantity!=="number"||!Number.isFinite(v.packQuantity)||v.packQuantity<=0||v.packQuantity>1e9||!unitsFor(ingredientId).includes(v.packUnit as Unit)||(v.packUnit==="pieces"&&!Number.isInteger(v.packQuantity)))throw new InventoryInputError("Enter a positive purchase pack size with a compatible unit.");
  if(typeof v.packLabel!=="string"||!v.packLabel.trim()||v.packLabel.trim().length>30)throw new InventoryInputError("Enter a pack name of up to 30 characters.");
- return {id:v.id as string|undefined,version:v.version as number|undefined,ingredientId,quantity:v.quantity,unit,countDate:v.countDate,expiryDate,packQuantity:v.packQuantity,packUnit:v.packUnit as Unit,packLabel:v.packLabel.trim()};
+ const packCostCents=v.packCostCents===undefined?undefined:v.packCostCents===null?null:v.packCostCents;
+ if(packCostCents!==null&&packCostCents!==undefined&&(!Number.isSafeInteger(packCostCents)||(packCostCents as number)<0||(packCostCents as number)>100000000))throw new InventoryInputError("Purchase pack cost must be between RM 0.00 and RM 1,000,000.00.");
+ return {id:v.id as string|undefined,version:v.version as number|undefined,ingredientId,quantity:v.quantity,unit,countDate:v.countDate,expiryDate,packQuantity:v.packQuantity,packUnit:v.packUnit as Unit,packLabel:v.packLabel.trim(),packCostCents:packCostCents as number|null|undefined};
 }
 // Closing stock examples, not opening purchases or a food-storage recommendation.
 export const demoStock:[IngredientId,number,Unit,number,Unit,string][]=[

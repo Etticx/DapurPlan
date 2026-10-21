@@ -8,9 +8,9 @@ Existing owner sessions remain valid. Deployment still requires a strong session
 Both roles can read the kitchen dashboard, recipes, inventory and plans. Both can
 enter and correct sales, recording the actual signed-in username in history.
 Staff may add a new stock batch only using an existing owner-defined purchase pack.
-They cannot edit existing batches, change packs or load demo stock. Owners retain
-stock correction, pack configuration, recipe edits, forecast generation, draft editing
-and approval. APIs return 401 for unsigned requests and 403 for restricted role actions.
+They cannot edit existing batches, change pack sizes or costs, set menu prices or load
+demo stock. Owners retain stock correction, pack configuration and costing, recipe edits,
+forecast generation, draft editing and approval. APIs return 401 for unsigned requests and 403 for restricted role actions.
 All permissions are checked on the server; disabled controls are an additional UI cue.
 
 Accounts cannot yet be created, invited or assigned per restaurant. Staff activity
