@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import {mkdtempSync,rmSync} from "node:fs";import {tmpdir} from "node:os";import {join} from "node:path";import Database from "better-sqlite3";
 import {openSalesStore} from "../src/lib/sales-store";
 import {openInventoryStore} from "../src/lib/inventory-store";
+import {openRecipeStore} from "../src/lib/recipe-store";
 import {validateSales,emptySalesDay} from "../src/lib/sales";
-import {malaysiaDate} from "../src/lib/inventory";
+import {addDays,malaysiaDate} from "../src/lib/inventory";
 test("sales preserve blanks, persist corrections once per date and never change inventory",()=>{
  const dir=mkdtempSync(join(tmpdir(),"dapur-sales-"));const path=join(dir,"test.sqlite");const inventory=openInventoryStore(path);let store=openSalesStore(path);const raw=new Database(path);
  try{const stock=inventory.seed("owner");const date=malaysiaDate();const initial=store.day(date);assert.equal(initial.version,0);assert.ok(initial.lines.every(l=>l.quantity===null));
@@ -21,6 +22,27 @@ test("sales reject negative, fractional, unknown, missing, future and all-blank 
  const d=emptySalesDay(malaysiaDate());const good={...d,lines:d.lines.map((l,i)=>({...l,quantity:i===0?0:null}))};assert.equal(validateSales(good).lines[0].quantity,0);
  for(const input of [d,null,{...good,date:"2099-01-01"},{...good,date:"2026-02-30"},{...good,version:-1},{...good,lines:good.lines.slice(1)},{...good,lines:good.lines.map(()=>good.lines[0])}])assert.throws(()=>validateSales(input));
  for(const patch of [{quantity:-1},{quantity:1.5},{quantity:Infinity},{quantity:"40"},{menuId:"fake"},{quantity:null,soldOut:true},{soldOut:"yes"}])assert.throws(()=>validateSales({...good,lines:good.lines.map((l,i)=>i===0?{...l,...patch}:l)}));
+});
+
+test("daily revenue snapshots menu prices and compares with the previous calendar day",()=>{
+ const dir=mkdtempSync(join(tmpdir(),"dapur-revenue-"));const path=join(dir,"test.sqlite");const store=openSalesStore(path);const recipes=openRecipeStore(path);
+ try{
+  const menu=recipes.list()[0];recipes.update(menu.id,{...menu,priceCents:2500},"owner");
+  const previousDate=addDays(malaysiaDate(),-1);const today=malaysiaDate();
+  const previous=emptySalesDay(previousDate);previous.lines[0].quantity=2;previous.lines[1].quantity=0;
+  const previousSaved=store.save(previous,"owner");assert.equal(previousSaved.recent[0].revenueCents,5000);
+  const current=emptySalesDay(today);current.lines[0].quantity=3;current.lines[1].quantity=0;
+  const currentSaved=store.save(current,"owner");
+  assert.equal(currentSaved.day.lines[0].unitPriceCents,2500);
+  assert.equal(currentSaved.day.lines[0].quantity!*currentSaved.day.lines[0].unitPriceCents!,7500);
+  assert.equal(currentSaved.previousDay.date,previousDate);
+  assert.equal(currentSaved.previousDay.lines[0].unitPriceCents,2500);
+  assert.equal(currentSaved.recent.find(day=>day.date===today)?.revenueCents,7500);
+  recipes.update(recipes.list()[0].id,{...recipes.list()[0],priceCents:3000},"owner");
+  const corrected=store.save({...previousSaved.day,lines:previousSaved.day.lines.map((line,i)=>i===0?{...line,quantity:4}:line)},"owner");
+  assert.equal(corrected.day.lines[0].unitPriceCents,2500);
+  assert.equal(corrected.recent.find(day=>day.date===previousDate)?.revenueCents,10000);
+ }finally{recipes.close();store.close();rmSync(dir,{recursive:true,force:true});}
 });
 
 test("six-day demo import preserves existing entries, provenance and manual seventh day",()=>{

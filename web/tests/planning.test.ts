@@ -3,7 +3,7 @@ import {mkdtempSync,rmSync} from "node:fs";import {tmpdir} from "node:os";import
 import {ingredientNeeds,defaultPrep,validatePrep} from "../src/lib/planning";
 import {openPlanStore} from "../src/lib/plan-store";import {openSalesStore} from "../src/lib/sales-store";import {openForecastStore} from "../src/lib/forecast-store";import {openInventoryStore} from "../src/lib/inventory-store";
 import {demoRecipes} from "../src/lib/recipes";import type {StoredRecipe} from "../src/lib/recipe-store";import type {Inventory,Batch} from "../src/lib/inventory";import {emptySalesDay} from "../src/lib/sales";import {addDays,malaysiaDate} from "../src/lib/inventory";
-const recipes:StoredRecipe[]=demoRecipes.map(r=>({...r,version:1,updatedAt:"seed",updatedBy:"seed",isDemo:true}));
+const recipes:StoredRecipe[]=demoRecipes.map(r=>({...r,priceCents:null,version:1,updatedAt:"seed",updatedBy:"seed",isDemo:true}));
 function batch(id:string,ingredientId:Batch["ingredientId"],quantity:number,unit:Batch["unit"],expiryDate:string|null,countDate="2026-10-21"):Batch{return {id,ingredientId,quantity,unit,expiryDate,countDate,version:1,isDemo:true,updatedAt:"seed",updatedBy:"seed"};}
 test("combines shared rice, converts units, excludes expired stock and rounds purchase packs",()=>{
  const inventory:Inventory={batches:[batch("old","rice",2,"kg","2026-10-21"),batch("soon","rice",3000,"g","2026-10-22"),batch("later","rice",2,"kg","2026-11-01")],packs:[{ingredientId:"rice",quantity:5,unit:"kg",label:"bag"}]};

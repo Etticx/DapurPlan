@@ -67,6 +67,8 @@ Schema version 1: `menus`, `ingredients` (`stock_tracked=0` for water), `recipes
 Each recipe update checks its current version to reject stale edits and writes current
 values, lines, and history atomically. Authenticated endpoints: GET `/api/recipes`,
 PUT `/api/recipes/:id`, GET `/api/recipes/:id/history`.
+Migration 5 adds an optional selling price in integer cents. Owners set menu prices in
+Recipes; staff can view them. Menu price edits use the same versioned recipe history.
 
 Database files, WAL journals and secrets are ignored by Git. Set `DAPURPLAN_DB_PATH`
 to change the file location. Back up via SQLite's backup API or stop the app before
@@ -111,11 +113,17 @@ Run `npm run test:inventory` for isolated seed, validation, persistence and roll
 Open `/sales` after signing in. Enter whole-number quantities for the five fixed
 menus; blank is stored as NULL (not entered), while 0 is confirmed zero sales.
 At least one quantity is required per save. Dates follow Malaysia time and cannot
-be in the future. Sales and optional sold-out flags are observational records;
-they never deduct stock and do not yet feed a model. No sales are seeded automatically.
+be in the future. The page shows total revenue and servings sold for the selected day,
+revenue by menu item, and changes against the previous calendar day. Revenue uses the
+configured selling price and the saved quantity; each sale retains the per-item price
+in effect when it was first recorded, so later menu price changes do not rewrite past
+revenue. Items without configured prices are called out rather than counted as zero.
+Sales and optional sold-out flags are observational records; they never deduct stock
+and do not yet feed a model. No sales are seeded automatically.
 
 Schema migration 3 adds `sales_days`, `sales_lines` (unique date/menu), and
-`sales_history` (snapshot, actor, UTC time and version). Corrections update one
+`sales_history` (snapshot, actor, UTC time and version); migration 6 adds the
+per-item price snapshot used for revenue. Corrections update one
 day atomically with history. Stale versions are rejected. Authenticated GET
 `/api/sales?date=YYYY-MM-DD` returns that date and the latest 30 records; POST
 `/api/sales` saves a complete five-row form, including explicitly blank rows.

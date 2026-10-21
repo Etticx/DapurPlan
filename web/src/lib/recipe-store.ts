@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { demoRecipes, ingredients, type Recipe } from "./recipes";
 import { validateRecipeUpdate } from "./recipe-validation";
 
-export type StoredRecipe = Recipe & {version:number; updatedAt:string; updatedBy:string; isDemo:boolean};
+export type StoredRecipe = Recipe & {priceCents:number|null;version:number; updatedAt:string; updatedBy:string; isDemo:boolean};
 export class RecipeConflictError extends Error {}
 export class RecipeNotFoundError extends Error {}
 
@@ -23,6 +23,11 @@ export function openRecipeStore(filename=process.env.DAPURPLAN_DB_PATH || resolv
     CREATE TABLE IF NOT EXISTS recipe_lines (menu_id TEXT NOT NULL REFERENCES recipes(menu_id), ingredient_id TEXT NOT NULL REFERENCES ingredients(id), quantity REAL NOT NULL CHECK(quantity>0), unit TEXT NOT NULL CHECK(unit IN ('g','kg','ml','L','pieces')), position INTEGER NOT NULL, PRIMARY KEY(menu_id,ingredient_id));
     CREATE TABLE IF NOT EXISTS recipe_versions (menu_id TEXT NOT NULL REFERENCES menus(id), version INTEGER NOT NULL, changed_at TEXT NOT NULL, changed_by TEXT NOT NULL, snapshot TEXT NOT NULL, PRIMARY KEY(menu_id,version));
   `);
+  const recipeColumns=db.prepare("PRAGMA table_info(recipes)").all() as {name:string}[];
+  if (!recipeColumns.some(column=>column.name==="price_cents")) {
+    db.exec("ALTER TABLE recipes ADD COLUMN price_cents INTEGER CHECK(price_cents IS NULL OR price_cents BETWEEN 0 AND 100000000)");
+  }
+  db.prepare("INSERT OR IGNORE INTO schema_migrations VALUES (5,?)").run(new Date().toISOString());
   const insertLine=db.prepare("INSERT INTO recipe_lines VALUES (?,?,?,?,?)");
   // Seed once in a transaction; future starts never reset owner edits.
   db.transaction(()=>{
@@ -31,15 +36,15 @@ export function openRecipeStore(filename=process.env.DAPURPLAN_DB_PATH || resolv
     for (const i of ingredients) db.prepare("INSERT INTO ingredients VALUES (?,?,?,?)").run(i.id,i.name,i.kind,i.id==="water"?0:1);
     demoRecipes.forEach((r,index)=>{
       db.prepare("INSERT INTO menus VALUES (?,?,?,?)").run(r.id,r.name,r.category,index);
-      db.prepare("INSERT INTO recipes VALUES (?,?,?,?,?,?)").run(r.id,r.servings,1,now,"system:demo-seed",1);
+      db.prepare("INSERT INTO recipes (menu_id,servings,version,updated_at,updated_by,is_demo) VALUES (?,?,?,?,?,?)").run(r.id,r.servings,1,now,"system:demo-seed",1);
       r.lines.forEach((l,p)=>insertLine.run(r.id,l.ingredientId,l.quantity,l.unit,p));
-      db.prepare("INSERT INTO recipe_versions VALUES (?,?,?,?,?)").run(r.id,1,now,"system:demo-seed",JSON.stringify({...r,version:1,updatedAt:now,updatedBy:"system:demo-seed",isDemo:true}));
+      db.prepare("INSERT INTO recipe_versions VALUES (?,?,?,?,?)").run(r.id,1,now,"system:demo-seed",JSON.stringify({...r,priceCents:null,version:1,updatedAt:now,updatedBy:"system:demo-seed",isDemo:true}));
     });
     db.prepare("INSERT INTO schema_migrations VALUES (1,?)").run(now);
   }).immediate();
 
   function list():StoredRecipe[] {
-    const rows=db.prepare(`SELECT m.id,m.name,m.category,r.servings,r.version,r.updated_at AS updatedAt,r.updated_by AS updatedBy,r.is_demo AS isDemo FROM menus m JOIN recipes r ON m.id=r.menu_id ORDER BY m.position`).all() as (Omit<StoredRecipe,"lines"|"isDemo"> & {isDemo:number})[];
+    const rows=db.prepare(`SELECT m.id,m.name,m.category,r.servings,r.price_cents AS priceCents,r.version,r.updated_at AS updatedAt,r.updated_by AS updatedBy,r.is_demo AS isDemo FROM menus m JOIN recipes r ON m.id=r.menu_id ORDER BY m.position`).all() as (Omit<StoredRecipe,"lines"|"isDemo"> & {isDemo:number})[];
     return rows.map(r=>({...r,isDemo:Boolean(r.isDemo),lines:db.prepare("SELECT ingredient_id AS ingredientId,quantity,unit FROM recipe_lines WHERE menu_id=? ORDER BY position").all(r.id) as Recipe["lines"]}));
   }
   function history(id:string) {
@@ -52,8 +57,8 @@ export function openRecipeStore(filename=process.env.DAPURPLAN_DB_PATH || resolv
       const current=list().find(r=>r.id===id);
       if (!current) throw new RecipeNotFoundError("Recipe not found.");
       if (current.version!==input.version) throw new RecipeConflictError("This recipe changed in another window. Reload before saving; your changes have not been saved.");
-      const next:StoredRecipe={...current,servings:input.servings,lines:input.lines,version:current.version+1,updatedAt:new Date().toISOString(),updatedBy:actor,isDemo:false};
-      db.prepare("UPDATE recipes SET servings=?,version=?,updated_at=?,updated_by=?,is_demo=0 WHERE menu_id=?").run(next.servings,next.version,next.updatedAt,actor,id);
+      const next:StoredRecipe={...current,servings:input.servings,priceCents:input.priceCents,lines:input.lines,version:current.version+1,updatedAt:new Date().toISOString(),updatedBy:actor,isDemo:false};
+      db.prepare("UPDATE recipes SET servings=?,price_cents=?,version=?,updated_at=?,updated_by=?,is_demo=0 WHERE menu_id=?").run(next.servings,next.priceCents,next.version,next.updatedAt,actor,id);
       db.prepare("DELETE FROM recipe_lines WHERE menu_id=?").run(id);
       next.lines.forEach((l,p)=>insertLine.run(id,l.ingredientId,l.quantity,l.unit,p));
       // The snapshot and current recipe commit together, or both roll back.

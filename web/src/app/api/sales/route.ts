@@ -4,11 +4,11 @@ import {getSession} from "@/lib/auth";
 import {getSalesStore} from "@/lib/sales-db";
 import {SalesInputError,salesDate} from "@/lib/sales";
 import {SalesConflictError} from "@/lib/sales-store";
-import {malaysiaDate} from "@/lib/inventory";
+import {addDays,malaysiaDate} from "@/lib/inventory";
 export const runtime="nodejs";
 export async function GET(request:Request){
  if(!await getSession())return NextResponse.json({error:"Sign in first."},{status:401});
- try{const date=salesDate(new URL(request.url).searchParams.get("date")||malaysiaDate());const store=getSalesStore();return NextResponse.json({day:store.day(date),recent:store.recent()},{headers:{"Cache-Control":"no-store"}});}
+ try{const date=salesDate(new URL(request.url).searchParams.get("date")||malaysiaDate());const store=getSalesStore();return NextResponse.json({day:store.day(date),previousDay:store.day(addDays(date,-1)),recent:store.recent(),menuPrices:store.menuPrices()},{headers:{"Cache-Control":"no-store"}});}
  catch(e){return NextResponse.json({error:e instanceof SalesInputError?e.message:"Could not load sales. Please try again."},{status:e instanceof SalesInputError?400:503});}
 }
 export async function POST(request:Request){
