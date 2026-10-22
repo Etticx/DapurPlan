@@ -161,3 +161,39 @@ Prices are stored separately in `ingredient_prices`, with version checks and ato
 Migration 12 changes tea pricing to a bag (RM12 demo). The price screen hides the individual tea-bag count. Internally one price bag contains 100 tea bags, matching the existing purchase pack, so recipes using 10 tea bags still cost RM1.20 in tea. Existing saved prices are converted once, preserving their effective cost per tea bag.
 
 On Daily sales, owners can use **Fill missing prices and costs** for the selected saved date. The action copies only missing financial values from current menu prices and recipe costs; existing financial values, servings, stock and provenance stay unchanged. All updates and the sales-history entry are atomic and version checked. Positive sales with unavailable current prices/costs reject the correction. Other historical dates are not automatically changed. Financial corrections increment the sales revision, so existing forecasts based on that revision may require regeneration.
+
+
+## Spreadsheet CSV exchange
+
+Open **Spreadsheet data** to download current CSV files and import edited copies.
+This first spreadsheet workflow is an explicit export/edit/import exchange, not a
+live-connected workbook or a second database. The existing SQLite stores remain the
+source of truth; successful imports use the same versioned sales, expense, inventory,
+recipe, and ingredient-price stores used by DapurPlan. Reports and forecasts therefore
+use imported changes without a separate database sync.
+
+CSV exports are available for daily sales, expenses, inventory batches, recipe
+definitions/menu prices, ingredient prices, and the latest saved forecast/preparation
+plan. Planning CSV is read-only because it is generated from current sales, recipe,
+and stock inputs. Importing source data does not automatically regenerate a forecast
+or approve a preparation plan.
+
+Imports are limited to 1 MB and 5,000 rows. Keep the exported headers and IDs intact.
+Version columns are checked against the latest saved record; changed records are
+rejected with row-level errors instead of overwriting newer edits. Imports save by
+record group, not as one all-or-nothing file: successful groups remain saved if other
+groups fail. Review the result, download a fresh CSV, and resolve stale rows before
+trying again.
+
+Daily sales CSVs contain all five menu rows per saved date; blank servings mean not
+entered and `0` means confirmed zero. Expense CSV import replaces the complete list
+for each date; use one `clear-date` row to remove that date’s expenses. Inventory
+rows with a batch ID correct that batch (owner only); rows without an ID add batches
+(owner or staff). Setting quantity to zero preserves a batch’s history. Recipe
+imports replace the full ingredient list for each menu. Only owners can import
+ingredient prices or recipes; staff can import sales, expenses, and new stock batches.
+CSV downloads protect formula-looking text cells for spreadsheet software.
+
+Run `npm run test:spreadsheet` for CSV parsing, quoting, validation, and formula-cell
+regression coverage. API access requires a signed-in session; spreadsheet imports
+are subject to the same role checks and input validation as the web forms.

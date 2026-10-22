@@ -90,6 +90,15 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
   });
  }
  function getData(date:string,period:SalesTrendPeriod):SalesData{return {day:day(date),previousDay:day(addDays(date,-1)),recent:recent(),menuPrices:menuPrices(),menuCosts:menuCosts(),...expenseState(date),trend:trend(period,date),trendPeriod:period};}
+ function spreadsheetSales():SalesDay[]{
+  const dates=db.prepare("SELECT date FROM sales_days ORDER BY date").all() as {date:string}[];
+  return dates.map(({date})=>day(date));
+ }
+ function spreadsheetExpenses(){
+  return db.prepare(`SELECT e.id,e.date,e.category,e.amount_cents AS amountCents,e.note,d.version
+   FROM daily_expenses e JOIN daily_expense_days d ON d.date=e.date
+   ORDER BY e.date,e.rowid`).all() as (DailyExpense&{date:string;version:number})[];
+ }
  function save(value:unknown,actor:string,demoDate?:string,period:SalesTrendPeriod="daily"){
   const input=validateSales(value);if(actor!=="owner"&&actor!=="staff")throw new Error("Owner access required.");
   db.transaction(()=>{
@@ -165,5 +174,5 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
   }
   return {imported,skipped,manualEntryDate:demoSales.days[6].date};
  }).immediate();}
- return {day,recent,menuPrices,menuCosts,expenseState,financial,trend,getData,save,fillMissingFinancials,saveExpenses,history,importDemo,close:()=>{db.close();recipes.close();inventory.close();}};
+ return {day,recent,menuPrices,menuCosts,expenseState,financial,trend,getData,spreadsheetSales,spreadsheetExpenses,save,fillMissingFinancials,saveExpenses,history,importDemo,close:()=>{db.close();recipes.close();inventory.close();}};
 }
