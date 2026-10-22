@@ -37,7 +37,7 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
   return {...d,provenance:provenance(date)??null,lines:rows.map(line=>({...line,soldOut:Boolean(line.soldOut),costSnapshot:line.costSnapshot?JSON.parse(line.costSnapshot) as RecipeCostSnapshot:null}))};
  }
  function menuPrices():Record<string,number|null>{return Object.fromEntries((recipes.list()).map(recipe=>[recipe.id,recipe.priceCents]));}
- function menuCosts():Record<string,RecipeCostSnapshot>{const packs=inventory.list().packs;return Object.fromEntries(recipes.list().map(recipe=>[recipe.id,costRecipe(recipe,packs)]));}
+ function menuCosts():Record<string,RecipeCostSnapshot>{const stock=inventory.list();return Object.fromEntries(recipes.list().map(recipe=>[recipe.id,costRecipe(recipe,stock.packs,stock.prices)]));}
  function expenseState(date:string){salesDate(date);const row=db.prepare("SELECT version FROM daily_expense_days WHERE date=?").get(date) as {version:number}|undefined;const expenses=db.prepare("SELECT id,category,amount_cents AS amountCents,note FROM daily_expenses WHERE date=? ORDER BY rowid").all(date) as DailyExpense[];return {expenses,expenseVersion:row?.version??0};}
  function financial(date:string):FinancialSummary{
   salesDate(date);

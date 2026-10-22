@@ -1,7 +1,9 @@
 import {ingredients,unitsFor,baseQuantity,type IngredientId,type Unit} from "./recipes";
 export type Batch={id:string;ingredientId:IngredientId;quantity:number;unit:Unit;countDate:string;expiryDate:string|null;version:number;isDemo:boolean;updatedBy:string;updatedAt:string};
 export type Pack={ingredientId:IngredientId;quantity:number;unit:Unit;label:string;costCents?:number|null};
-export type Inventory={batches:Batch[];packs:Pack[]};
+export type IngredientPrice={ingredientId:IngredientId;unit:Unit;quantity?:number;costCents:number|null;version:number};
+export type Inventory={batches:Batch[];packs:Pack[];prices?:IngredientPrice[]};
+export function priceUnit(id:IngredientId):Unit{const kind=ingredients.find(i=>i.id===id)!.kind;return kind==="weight"?"kg":kind==="liquid"?"L":"pieces";}
 export function malaysiaDate(){return new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Kuala_Lumpur",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());}
 export function addDays(date:string,days:number){const d=new Date(date+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);}
 export function validDate(value:unknown):value is string {return typeof value==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+"T00:00:00Z"))&&new Date(value+"T00:00:00Z").toISOString().slice(0,10)===value;}

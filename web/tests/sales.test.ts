@@ -51,7 +51,7 @@ test("daily profit snapshots recipe costs, includes expenses, and aggregates tre
  const dir=mkdtempSync(join(tmpdir(),"dapur-profit-"));const path=join(dir,"test.sqlite");const store=openSalesStore(path);const recipes=openRecipeStore(path);const inventory=openInventoryStore(path);
  try{
   let stocks=inventory.seed("owner");const rice=stocks.batches.find(batch=>batch.ingredientId==="rice")!;const pack=stocks.packs.find(item=>item.ingredientId==="rice")!;
-  stocks=inventory.save({...rice,packQuantity:1,packUnit:"kg",packLabel:"bag",packCostCents:2000},"owner");
+  stocks=inventory.savePrice({ingredientId:"rice",unit:"kg",costCents:2000,version:0},"owner");
   const recipe=recipes.list()[0];recipes.update(recipe.id,{...recipe,priceCents:3000,servings:2,lines:[{ingredientId:"rice",quantity:2,unit:"kg"}]},"owner");
   const previousDate=addDays(malaysiaDate(),-1);const today=malaysiaDate();
   const previous=emptySalesDay(previousDate);previous.lines[0].quantity=1;store.save(previous,"owner");
@@ -64,7 +64,7 @@ test("daily profit snapshots recipe costs, includes expenses, and aggregates tre
   assert.equal(daily.revenueCents,9000);assert.equal(daily.ingredientCostCents,6000);assert.equal(daily.grossProfitCents,3000);assert.equal(daily.expensesCents,1000);assert.equal(daily.netProfitCents,2000);
   recipes.update(recipe.id,{...recipes.list()[0],priceCents:5000,servings:4,lines:[{ingredientId:"rice",quantity:4,unit:"kg"}]},"owner");
   const latestRice=inventory.list().batches.find(batch=>batch.ingredientId==="rice")!;
-  inventory.save({...latestRice,packQuantity:1,packUnit:"kg",packLabel:"bag",packCostCents:4000},"owner");
+  inventory.savePrice({ingredientId:"rice",unit:"kg",costCents:4000,version:1},"owner");
   const corrected=store.save({...saved.day,lines:saved.day.lines.map((line,index)=>index===0?{...line,quantity:4}:line)},"owner");
   assert.equal(corrected.day.lines[0].unitPriceCents,3000);
   assert.equal(corrected.day.lines[0].ingredientCostPerServingCents,2000);

@@ -150,3 +150,12 @@ Partial days are visibly marked and must not be treated as complete training dat
 Use the date picker for older records. Run `npm run test:sales` to verify validation,
 price/cost snapshots, expenses, profit aggregation, trends, correction history,
 rollback and unchanged inventory.
+
+
+### Ingredient prices
+
+Inventory has a separate Ingredient prices editor. Owners set MYR per kg, litre, carton of 30 eggs, bag of tea or lemon. Staff can view prices. Demo prices are hypothetical; water is RM0/litre, with its utility bill recorded separately. Blank means unknown. Stock batches still hold closing quantities and expiry dates, while purchase pack sizes determine shopping quantities.
+
+Prices are stored separately in `ingredient_prices`, with version checks and atomic ingredient-cost history. Migration 10 converts existing pack costs once to baseline prices, rounded to the nearest sen. Migration 11 converts existing per-egg prices to a carton of 30 without changing their cost per egg. Subsequent startups preserve saved prices. Recipe costing and new sales use these prices independently of pack sizes. Historical sales keep their original snapshots, including missing costs; this change does not backfill them. The old pack-cost columns and water endpoint remain for compatibility. New screens use the owner-only `save-ingredient-price` action.
+
+Migration 12 changes tea pricing to a bag (RM12 demo). The price screen hides the individual tea-bag count. Internally one price bag contains 100 tea bags, matching the existing purchase pack, so recipes using 10 tea bags still cost RM1.20 in tea. Existing saved prices are converted once, preserving their effective cost per tea bag.

@@ -1,5 +1,5 @@
 import {ingredients,baseQuantity,type Recipe} from "./recipes";
-import type {Pack} from "./inventory";
+import type {IngredientPrice,Pack} from "./inventory";
 
 export type IngredientCostSnapshot={
  ingredientId:string;
@@ -18,11 +18,14 @@ export type RecipeCostSnapshot={
  ingredients:IngredientCostSnapshot[];
 };
 
-export function costRecipe(recipe:Recipe&{version:number},packs:Pack[]):RecipeCostSnapshot{
+export function costRecipe(recipe:Recipe&{version:number},packs:Pack[],prices?:IngredientPrice[]):RecipeCostSnapshot{
  const ingredientCosts=recipe.lines.map(line=>{
   const info=ingredients.find(item=>item.id===line.ingredientId)!;
   const pack=packs.find(item=>item.ingredientId===line.ingredientId);
-  const batchCostCents=pack?.costCents==null?null:Math.round(pack.costCents*baseQuantity(line.quantity,line.unit)/baseQuantity(pack.quantity,pack.unit));
+  const price=prices?.find(p=>p.ingredientId===line.ingredientId);
+  const batchCostCents=prices!==undefined
+   ? price?.costCents==null?null:Math.round(price.costCents*baseQuantity(line.quantity,line.unit)/baseQuantity(price.quantity??1,price.unit))
+   : pack?.costCents==null?null:Math.round(pack.costCents*baseQuantity(line.quantity,line.unit)/baseQuantity(pack.quantity,pack.unit));
   return {ingredientId:line.ingredientId,name:info.name,quantity:line.quantity,unit:line.unit,quantityPerServing:line.quantity/recipe.servings,batchCostCents};
  });
  const batchCostCents=ingredientCosts.every(line=>line.batchCostCents!==null)?ingredientCosts.reduce((sum,line)=>sum+(line.batchCostCents??0),0):null;

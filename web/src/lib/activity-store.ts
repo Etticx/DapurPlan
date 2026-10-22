@@ -49,7 +49,7 @@ function format(raw:RawEvent):ActivityEvent{
   add("Purchase pack cost",old?.pack?.costCents===undefined?undefined:old.pack.costCents===null?"Not set":`RM ${(old.pack.costCents/100).toFixed(2)}`,now.pack.costCents===null?"Not set":`RM ${(now.pack.costCents/100).toFixed(2)}`);
  }else if(raw.type==="costs"){
   title="Updated ingredient cost";subject=ingredientName(now.ingredientId);
-  add("Cost per litre",old?.costCents===undefined?undefined:old.costCents===null?"Not set":`RM ${(old.costCents/100).toFixed(2)}`,now.costCents===null?"Not set":`RM ${(now.costCents/100).toFixed(2)}`);
+  add(now.quantity===30&&now.ingredientId==="egg"?"Price per carton (30 eggs)":now.ingredientId==="tea"&&now.quantity===100?"Price per bag":now.ingredientId==="tea"?"Price per tea bag":now.unit?`Price per ${now.unit}`:"Cost per litre",old?.costCents===undefined?undefined:old.costCents===null?"Not set":`RM ${(old.costCents/100).toFixed(2)}`,now.costCents===null?"Not set":`RM ${(now.costCents/100).toFixed(2)}`);
  }else if(raw.type==="forecast"){
   title="Generated serving forecast";subject=now.targetDate;demo=!!now.syntheticModel;
   for(const p of now.predictions||[])add(p.item,undefined,`${Number(p.predictedServings.toFixed(3))} servings`);

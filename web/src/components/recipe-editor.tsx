@@ -7,11 +7,11 @@ import { ingredients, unitsFor, perServing, baseQuantity, type Recipe, type Ingr
 
 import type { StoredRecipe } from "@/lib/recipe-store";
 import {costRecipe} from "@/lib/costing";
-import type {Pack} from "@/lib/inventory";
+import type {IngredientPrice,Pack} from "@/lib/inventory";
 
 const selectStyle = "h-11 w-full rounded-lg border border-input bg-white px-3 text-sm outline-none focus-visible:ring-4 focus-visible:ring-primary/10";
 const currency=new Intl.NumberFormat("en-MY",{style:"currency",currency:"MYR"});
-export function RecipeEditor({initialRecipes,ingredientPacks,canManage}:{initialRecipes:StoredRecipe[];ingredientPacks:Pack[];canManage:boolean}) {
+export function RecipeEditor({initialRecipes,ingredientPacks,ingredientPrices,canManage}:{initialRecipes:StoredRecipe[];ingredientPacks:Pack[];ingredientPrices?:IngredientPrice[];canManage:boolean}) {
   const [recipes, setRecipes] = useState<StoredRecipe[]>(initialRecipes);
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState(0);
@@ -19,7 +19,7 @@ export function RecipeEditor({initialRecipes,ingredientPacks,canManage}:{initial
   const [dirty, setDirty] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const costing=costRecipe(draft,ingredientPacks);
+  const costing=costRecipe(draft,ingredientPacks,ingredientPrices);
   function edit(next:StoredRecipe) {setDraft(next);setDirty(true);setMessage("");setError("");}
   function choose(index:number) {
     if (dirty && !window.confirm("Discard your unsaved recipe changes?")) return;
@@ -43,7 +43,7 @@ export function RecipeEditor({initialRecipes,ingredientPacks,canManage}:{initial
   return <>
     <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="mb-2 text-xs font-semibold tracking-[0.14em] text-blue-500">THE BUILDING BLOCKS OF YOUR PLAN</p><h1 className="text-3xl font-semibold tracking-tight">Your recipes</h1><p className="mt-2 text-sm text-muted-foreground">Tell us what goes into a batch. We’ll work out each serving.</p></div><span className="rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs text-primary">5 fixed menu items</span></div>
     {!canManage&&<p className="mt-5 text-sm text-muted-foreground">Recipes are view-only for staff. Ask the owner to make changes.</p>}
-    <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-secondary-foreground"><strong>Recipe cost estimates.</strong> Enter actual purchase pack costs in Inventory. Recipe ingredient quantities are multiplied by those costs; estimated cost per serving uses the recipe batch yield. Ingredient prices not set yet are excluded from the total and marked below.</div>
+    <div className="mt-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-5 text-secondary-foreground"><strong>Recipe cost estimates.</strong> Set ingredient prices per kg, litre or piece in Inventory. Recipe quantities determine the estimated cost per serving. Missing prices are marked below and leave the total incomplete.</div>
     <div className="mt-6 grid items-start gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
       <section aria-label="Menu items" className="overflow-hidden rounded-2xl border border-border bg-white"><div className="border-b border-border px-5 py-4"><h2 className="text-sm font-semibold">Menu items</h2><p className="mt-1 text-xs text-muted-foreground">Choose a recipe to review.</p></div><div className="space-y-1 p-2">{recipes.map((r,i)=>{const Icon=r.category==="Food"?UtensilsCrossed:Coffee;return <button key={r.id} type="button" disabled={saving} aria-pressed={selected===i} onClick={()=>choose(i)} className={`flex w-full items-center gap-3 rounded-xl p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-primary ${selected===i?"bg-secondary text-primary":"hover:bg-slate-50"}`}><span className="grid size-9 shrink-0 place-items-center rounded-lg bg-background"><Icon className="size-4" aria-hidden="true" /></span><span><span className="block text-sm font-medium">{r.name}</span><span className="mt-1 block text-xs text-muted-foreground">{r.category} · {r.servings} servings per batch</span></span></button>})}</div><p className="border-t border-border px-5 py-4 text-xs leading-5 text-muted-foreground">Menu names stay fixed to match our forecasting model.</p></section>
       <form onSubmit={save} className="min-w-0 overflow-hidden rounded-2xl border border-border bg-white"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-5 sm:px-6"><div><h2 className="text-xl font-semibold tracking-tight">{draft.name}</h2><p className="mt-1 text-xs text-muted-foreground">Ingredients for one batch</p></div><span className={`rounded-full px-3 py-1 text-xs ${dirty?"bg-amber-50 text-amber-800":"bg-slate-100 text-slate-500"}`}>{dirty?"Unsaved changes":draft.isDemo?"Demo recipe":`Saved · version ${draft.version}`}</span></div>

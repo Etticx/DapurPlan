@@ -1,4 +1,4 @@
 import "server-only";
 import {openSalesStore} from "./sales-store";
-const cache=globalThis as unknown as {salesStoreV4?:ReturnType<typeof openSalesStore>};
-export function getSalesStore(){return cache.salesStoreV4??=openSalesStore();}
+const cache=globalThis as unknown as {salesStoreV7?:ReturnType<typeof openSalesStore>};
+export function getSalesStore(){return cache.salesStoreV7??=openSalesStore();}
