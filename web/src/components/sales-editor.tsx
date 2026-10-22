@@ -32,7 +32,7 @@ function itemRevenue(line:SaleLine|undefined,fallbackPrices?:Record<string,numbe
 function initialExpenses(expenses:DailyExpense[]):ExpenseDraft[]{return expenses.map(expense=>({...expense}));}
 function summaryValue(value:number|null){return value===null?"Incomplete":money.format(value/100);}
 
-export function SalesEditor({initialData}:{initialData:SalesData}){
+export function SalesEditor({initialData,canManage=false}:{initialData:SalesData;canManage?:boolean}){
  const [data,setData]=useState(initialData);const [draft,setDraft]=useState<SalesDay>(structuredClone(initialData.day));
  const [expensesDraft,setExpensesDraft]=useState<ExpenseDraft[]>(initialExpenses(initialData.expenses));const [expensesDirty,setExpensesDirty]=useState(false);
  const [dirty,setDirty]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [message,setMessage]=useState("");
@@ -67,6 +67,11 @@ export function SalesEditor({initialData}:{initialData:SalesData}){
   }catch(e){setError(e instanceof Error?e.message:"Could not save sales. Please try again.");}
   finally{setBusy(false);}
  }
+ async function fillMissingFinancials(){
+  setBusy(true);setError("");setMessage("");
+  try{const response=await fetch("/api/sales/financials",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:draft.date,version:draft.version,trendPeriod})});const result=await response.json();if(!response.ok)throw new Error(result.error||"Could not fill missing prices and costs.");setData(result);setDraft(structuredClone(result.day));setMessage("Missing prices and costs filled using current settings. Revenue and estimated profit are updated. Existing recorded values were preserved.");}
+  catch(e){setError(e instanceof Error?e.message:"Could not fill missing prices and costs.");}finally{setBusy(false);}
+ }
  async function saveExpenses(e:React.FormEvent){
   e.preventDefault();setBusy(true);setError("");setMessage("");
   try{
@@ -88,6 +93,7 @@ export function SalesEditor({initialData}:{initialData:SalesData}){
   {draft.date==="2026-10-21"&&!draft.provenance&&<div className="mt-5 rounded-xl border border-amber-100 bg-amber-50 p-4 text-xs leading-6 text-amber-900"><p>Agreed demo for 21 October: chicken rice 41; kuey teow 30; nasi lemak 50; Kopi O ais 54; iced lemon tea 36.</p><label className="flex items-center gap-2"><input type="checkbox" checked={markDemo} disabled={busy} onChange={e=>setMarkDemo(e.target.checked)}/>Label this entry as synthetic demo sales</label></div>}
   {draft.provenance&&<span className="mt-5 inline-flex rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium text-secondary-foreground">Demo data</span>}
   <p className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-secondary-foreground">Ingredient cost is an estimate from recipe quantities and ingredient prices per kg, litre or piece in Inventory. Missing ingredient prices make the ingredient cost, gross profit, and net profit incomplete. Sales never deduct inventory.</p>
+  {!isNew&&draft.lines.some(line=>line.quantity!==null&&(line.unitPriceCents===null||line.ingredientCostPerServingCents===null))&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50 p-4"><p className="max-w-2xl text-xs leading-5 text-amber-900">This record was saved with missing prices or costs. The owner can fill them using current settings. Already recorded prices and costs stay unchanged.</p>{canManage&&<Button size="sm" disabled={busy||dirty||expensesDirty} onClick={()=>void fillMissingFinancials()}>{busy?"Working…":"Fill missing prices and costs"}</Button>}{(dirty||expensesDirty)&&<p className="w-full text-xs text-amber-900">Save or discard your edits first.</p>}</div>}
   <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">{[["Total revenue",summaryValue(totalRevenue)],["Servings sold",String(total)],["Ingredient costs",summaryValue(ingredientCosts)],["Gross profit",summaryValue(grossProfit)],["Estimated net profit",summaryValue(netProfit)]].map(([label,value])=><div key={label} className="rounded-2xl border border-border bg-white p-5"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-3 text-xl font-semibold">{value}</p>{label==="Estimated net profit"&&<p className="mt-1 text-xs text-muted-foreground">After {money.format(expenseTotal/100)} recorded expenses</p>}</div>)}</div>
   <div className="mt-4 grid gap-4 sm:grid-cols-2"><div className="rounded-2xl border border-border bg-white p-5"><p className="text-xs text-muted-foreground">Revenue vs previous day</p><p className="mt-3 text-xl font-semibold">{revenueChange===null?"—":`${revenueChange>=0?"+":""}${money.format(revenueChange/100)}`}</p><p className="mt-1 text-xs text-muted-foreground">{data.previousDay.version?`${servingsChange!>=0?"+":""}${servingsChange} servings vs ${data.previousDay.date}`:"No previous-day sales record"}</p></div><div className="rounded-2xl border border-border bg-white p-5"><p className="text-xs text-muted-foreground">Record status</p><p className="mt-3 text-xl font-semibold">{busy?"Working…":dirty||expensesDirty?"Unsaved changes":draft.version?"Saved":"Not entered"}</p></div></div>
   {error&&<p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-destructive">{error}</p>}{message&&<p role="status" className="mt-4 rounded-xl bg-green-50 p-4 text-sm text-green-800">{message}</p>}

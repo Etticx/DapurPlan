@@ -5,7 +5,7 @@ import {resolve} from "node:path";
 import {openRecipeStore} from "./recipe-store";
 import {openInventoryStore} from "./inventory-store";
 import {costRecipe,type RecipeCostSnapshot} from "./costing";
-import {validateSales,validateExpenses,salesDate,emptySalesDay,type SalesDay,type SalesSummary,type SalesData,type SaleLine,type DailyExpense,type FinancialSummary,type SalesTrendPeriod} from "./sales";
+import {SalesInputError,validateSales,validateExpenses,salesDate,emptySalesDay,type SalesDay,type SalesSummary,type SalesData,type SaleLine,type DailyExpense,type FinancialSummary,type SalesTrendPeriod} from "./sales";
 import {addDays} from "./inventory";
 export class SalesConflictError extends Error {}
 export class ExpenseConflictError extends Error {}
@@ -114,6 +114,33 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
   }).immediate();
   return getData(input.date,period);
  }
+ function fillMissingFinancials(value:unknown,actor:string,period:SalesTrendPeriod="daily"){
+  if(actor!=="owner")throw new SalesInputError("Only the owner can fill missing prices and costs.");
+  if(!value||typeof value!=="object"||Array.isArray(value))throw new SalesInputError("Choose a saved sales record.");
+  const input=value as {date?:unknown;version?:unknown};const date=salesDate(input.date);
+  if(!Number.isSafeInteger(input.version)||(input.version as number)<1)throw new SalesInputError("Choose a saved sales record.");
+  db.transaction(()=>{
+   const current=day(date);
+   if(current.version!==input.version)throw new SalesConflictError("Sales for this date changed. Reload before filling missing prices and costs.");
+   const prices=menuPrices();const costs=menuCosts();let changed=false;
+   const lines=current.lines.map(line=>{
+    if(line.quantity===null)return line;
+    const unitPriceCents=line.unitPriceCents??prices[line.menuId];
+    const ingredientCostPerServingCents=line.ingredientCostPerServingCents??costs[line.menuId].perServingCostCents;
+    if(line.quantity>0&&(unitPriceCents===null||ingredientCostPerServingCents===null))throw new SalesInputError("Set all selling prices in Recipes and ingredient prices in Inventory before filling this record.");
+    if(unitPriceCents===line.unitPriceCents&&ingredientCostPerServingCents===line.ingredientCostPerServingCents)return line;
+    changed=true;
+    return {...line,unitPriceCents,ingredientCostPerServingCents,costSnapshot:line.ingredientCostPerServingCents===null&&ingredientCostPerServingCents!==null?costs[line.menuId]:line.costSnapshot};
+   });
+   if(!changed)return;
+   const now=new Date().toISOString();const version=current.version+1;
+   const update=db.prepare("UPDATE sales_lines SET unit_price_cents=?,ingredient_cost_per_serving_cents=?,cost_snapshot=? WHERE date=? AND menu_id=?");
+   for(const line of lines)update.run(line.unitPriceCents,line.ingredientCostPerServingCents,line.costSnapshot?JSON.stringify(line.costSnapshot):null,date,line.menuId);
+   db.prepare("UPDATE sales_days SET version=?,updated_by=?,updated_at=? WHERE date=?").run(version,actor,now,date);
+   db.prepare("INSERT INTO sales_history VALUES (?,?,?,?,?)").run(date,version,actor,now,JSON.stringify({...day(date),financialCorrection:"Missing values filled using current selling prices and recipe costs."}));
+  }).immediate();
+  return getData(date,period);
+ }
  function saveExpenses(value:unknown,actor:string,period:SalesTrendPeriod="daily"){
   if(actor!=="owner"&&actor!=="staff")throw new Error("Owner access required.");
   const input=validateExpenses(value);
@@ -138,5 +165,5 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
   }
   return {imported,skipped,manualEntryDate:demoSales.days[6].date};
  }).immediate();}
- return {day,recent,menuPrices,menuCosts,expenseState,financial,trend,getData,save,saveExpenses,history,importDemo,close:()=>{db.close();recipes.close();inventory.close();}};
+ return {day,recent,menuPrices,menuCosts,expenseState,financial,trend,getData,save,fillMissingFinancials,saveExpenses,history,importDemo,close:()=>{db.close();recipes.close();inventory.close();}};
 }

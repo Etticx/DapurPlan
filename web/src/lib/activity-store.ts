@@ -26,7 +26,7 @@ function format(raw:RawEvent):ActivityEvent{
  const ingredientName=(id:string)=>ingredients.find(i=>i.id===id)?.name||id;
  let title="",subject="",demo=false;
  if(raw.type==="sales"){
-  title=old?"Corrected daily sales":"Recorded daily sales";subject=now.date;demo=!!now.provenance;
+  title=now.financialCorrection?"Filled missing sales prices and costs":old?"Corrected daily sales":"Recorded daily sales";subject=now.date;demo=!!now.provenance;
   for(const line of now.lines||[]){const previous=old?.lines?.find((l:{menuId:string})=>l.menuId===line.menuId);add(menuName(line.menuId),previous?previous.quantity===null?"Not entered":previous.quantity:undefined,line.quantity===null?"Not entered":line.quantity);add(`${menuName(line.menuId)} · sold out`,previous?previous.soldOut?"Yes":"No":undefined,line.soldOut?"Yes":"No");}
   for(const line of now.lines||[]){const previous=old?.lines?.find((l:{menuId:string})=>l.menuId===line.menuId);add(`${menuName(line.menuId)} · selling price / serving`,previous?.unitPriceCents===undefined?undefined:previous.unitPriceCents===null?"Not set":`RM ${(previous.unitPriceCents/100).toFixed(2)}`,line.unitPriceCents===null?"Not set":`RM ${(line.unitPriceCents/100).toFixed(2)}`);add(`${menuName(line.menuId)} · ingredient cost / serving`,previous?.ingredientCostPerServingCents===undefined?undefined:previous.ingredientCostPerServingCents===null?"Incomplete":`RM ${(previous.ingredientCostPerServingCents/100).toFixed(2)}`,line.ingredientCostPerServingCents===null?"Incomplete":`RM ${(line.ingredientCostPerServingCents/100).toFixed(2)}`);}
  }else if(raw.type==="expenses"){

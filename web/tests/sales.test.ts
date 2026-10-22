@@ -92,3 +92,24 @@ test("six-day demo import preserves existing entries, provenance and manual seve
   assert.equal(store.history("2026-10-15").length,1);
  }finally{store.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+test("owner fills missing financial snapshots without changing sales or existing costs",()=>{
+ const dir=mkdtempSync(join(tmpdir(),"dapur-fill-financials-"));const path=join(dir,"test.sqlite");const store=openSalesStore(path);const recipes=openRecipeStore(path);const inventory=openInventoryStore(path);const raw=new Database(path);
+ try{
+  const first=recipes.list()[0];recipes.update(first.id,{...first,lines:[{ingredientId:"rice",quantity:100,unit:"g"}],servings:1},"owner");
+  const input=emptySalesDay(malaysiaDate());input.lines[0].quantity=43;const old=store.save(input,"owner").day;const stock=inventory.list();
+  assert.throws(()=>store.fillMissingFinancials({date:old.date,version:old.version},"staff"));
+  assert.throws(()=>store.fillMissingFinancials({date:old.date,version:old.version},"owner"),/price|cost/i);
+  assert.deepEqual(store.day(old.date),old);
+  recipes.update(first.id,{...recipes.list()[0],priceCents:800},"owner");inventory.savePrice({ingredientId:"rice",unit:"kg",costCents:600,version:0},"owner");
+  raw.exec("CREATE TRIGGER fail_fill_history BEFORE INSERT ON sales_history BEGIN SELECT RAISE(ABORT,'test failure'); END");
+  assert.throws(()=>store.fillMissingFinancials({date:old.date,version:old.version},"owner"));assert.deepEqual(store.day(old.date),old);raw.exec("DROP TRIGGER fail_fill_history");
+  const saved=store.fillMissingFinancials({date:old.date,version:old.version},"owner");
+  assert.equal(saved.day.lines[0].quantity,43);assert.equal(saved.day.lines[0].unitPriceCents,800);assert.equal(saved.day.lines[0].ingredientCostPerServingCents,60);
+  assert.equal(store.financial(old.date).revenueCents,34400);assert.equal(store.financial(old.date).ingredientCostCents,2580);assert.equal(store.financial(old.date).grossProfitCents,31820);
+  assert.deepEqual(inventory.list().batches,stock.batches);assert.equal(store.history(old.date).length,2);
+  assert.throws(()=>store.fillMissingFinancials({date:old.date,version:old.version},"owner"),/changed/i);
+  recipes.update(first.id,{...recipes.list()[0],priceCents:1000},"owner");inventory.savePrice({ingredientId:"rice",unit:"kg",costCents:900,version:1},"owner");
+  const again=store.fillMissingFinancials({date:old.date,version:saved.day.version},"owner");assert.deepEqual(again.day,saved.day);assert.equal(store.history(old.date).length,2);
+ }finally{raw.close();store.close();recipes.close();inventory.close();rmSync(dir,{recursive:true,force:true});}
+});
