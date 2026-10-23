@@ -24,6 +24,14 @@ test("money formatting uses an explicit unavailable label instead of an incomple
  assert.match(source,/function summaryValue\(value:number\|null\)\{return value===null\?"Not available"/);
 });
 
+test("financial details distinguish incomplete expenses and negative contributions",()=>{
+ assert.match(source,/data\.expenseVersion>0&&!expensesDirty/);
+ assert.match(source,/Save an empty list to confirm no other expenses were recorded/);
+ assert.match(source,/itemFinancial\.contributionCents<0\?"text-red-700":""/);
+ assert.match(source,/Contribution margin/);
+ assert.match(source,/unrecorded expenses are excluded/);
+});
+
 test("serving and expense fields use purpose-built text keyboards and quick steppers",()=>{
  assert.match(source,/type="text" pattern="\[0-9\]\*" maxLength=\{7\} inputMode="numeric"/);
  assert.match(source,/aria-label=\{`Decrease \$\{menu\.name\} servings`\}/);

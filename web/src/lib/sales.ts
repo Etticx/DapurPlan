@@ -6,7 +6,7 @@ export type SaleLine={menuId:string;quantity:number|null;soldOut:boolean;unitPri
 export type SalesDay={provenance?:{sourceFile:string;sourceDate:string;sourceRows:string}|null;date:string;version:number;lines:SaleLine[];updatedBy:string|null;updatedAt:string|null};
 export type DailyExpense={id:string;category:string;amountCents:number;note:string};
 export type SalesTrendPeriod="daily"|"weekly"|"monthly";
-export type FinancialSummary={date:string;revenueCents:number|null;ingredientCostCents:number|null;expensesCents:number;grossProfitCents:number|null;netProfitCents:number|null;salesDays:number};
+export type FinancialSummary={date:string;revenueCents:number|null;ingredientCostCents:number|null;expensesCents:number;expensesRecorded:boolean;grossProfitCents:number|null;netProfitCents:number|null;grossProfitMarginPercent:number|null;netProfitMarginPercent:number|null;salesDays:number};
 export type SalesSummary=FinancialSummary&{sourceDate?:string|null;version:number;entered:number;total:number;updatedAt:string};
 export type SalesData={day:SalesDay;previousDay:SalesDay;recent:SalesSummary[];menuPrices:Record<string,number|null>;menuCosts:Record<string,RecipeCostSnapshot>;expenses:DailyExpense[];expenseVersion:number;trend:FinancialSummary[];trendPeriod:SalesTrendPeriod};
 export class SalesInputError extends Error {}

@@ -5,34 +5,20 @@ import {CalendarDays,ChevronDown,Coffee,Plus,RotateCcw,Save,Trash2,TrendingUp,Ut
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {salesMenus,type SalesData,type SalesDay,type SaleLine,type SalesTrendPeriod,type DailyExpense} from "@/lib/sales";
+import {calculateProfitTotals,calculateSaleFinancialTotals,calculateSaleLineFinancials} from "@/lib/sales-financials";
 import {malaysiaDate} from "@/lib/inventory";
 import {MAX_SALES_SERVINGS,parseExpenseAmount,parseServingsInput} from "@/lib/sales-input";
 
 type ExpenseDraft={id:string;category:string;amount:string;note:string};
 const money=new Intl.NumberFormat("en-MY",{style:"currency",currency:"MYR"});
 function formatMoney(cents:number|null){return cents===null?"Not available":money.format(cents/100);}
-function revenueFor(lines:SaleLine[],fallbackPrices?:Record<string,number|null>){
- const entered=lines.filter(line=>line.quantity!==null);if(!entered.length)return null;
- let total=0;
- for(const line of entered){if(line.quantity!>0&&line.unitPriceCents===null&&(fallbackPrices?.[line.menuId]??null)===null)return null;total+=line.quantity!*(line.unitPriceCents??fallbackPrices?.[line.menuId]??0);}
- return total;
-}
 function servingsFor(lines:SaleLine[]){return lines.reduce((sum,line)=>sum+(line.quantity??0),0);}
 function lineIngredientCost(line:SaleLine,fallbackCosts?:SalesData["menuCosts"]){
  return line.ingredientCostPerServingCents??fallbackCosts?.[line.menuId]?.perServingCostCents??null;
 }
-function ingredientCostFor(lines:SaleLine[],fallbackCosts?:SalesData["menuCosts"]){
- const entered=lines.filter(line=>line.quantity!==null);if(!entered.length)return null;
- let total=0;
- for(const line of entered){const perServing=lineIngredientCost(line,fallbackCosts);if(line.quantity!>0&&perServing===null)return null;total+=line.quantity!*(perServing??0);}
- return total;
-}
-function itemRevenue(line:SaleLine|undefined,fallbackPrices?:Record<string,number|null>){
- if(!line||line.quantity===null)return null;const price=line.unitPriceCents??fallbackPrices?.[line.menuId]??null;
- return line.quantity>0&&price===null?null:line.quantity*(price??0);
-}
 function initialExpenses(expenses:DailyExpense[]):ExpenseDraft[]{return expenses.map(expense=>({id:expense.id,category:expense.category,amount:(expense.amountCents/100).toFixed(2),note:expense.note}));}
 function summaryValue(value:number|null){return value===null?"Not available":money.format(value/100);}
+function formatMargin(value:number|null){return value===null?"Not available":`${value.toFixed(1)}%`;}
 function shortDate(value:string){return new Date(`${value}T12:00:00+08:00`).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric",timeZone:"Asia/Kuala_Lumpur"});}
 
 export function SalesEditor({initialData,canManage=false}:{initialData:SalesData;canManage?:boolean}){
@@ -51,12 +37,16 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
  const isNew=draft.version===0;
  const fallbackPrices=isNew?data.menuPrices:undefined;
  const fallbackCosts=isNew?data.menuCosts:undefined;
- const totalRevenue=revenueFor(draft.lines,fallbackPrices);
- const ingredientCosts=ingredientCostFor(draft.lines,fallbackCosts);
- const grossProfit=totalRevenue===null||ingredientCosts===null?null:totalRevenue-ingredientCosts;
  const expenseTotal=expensesDraft.reduce((sum,expense)=>sum+(parseExpenseAmount(expense.amount)??0),0);
- const netProfit=grossProfit===null?null:grossProfit-expenseTotal;
- const previousRevenue=data.previousDay.version?revenueFor(data.previousDay.lines):null;
+ const draftLines=draft.lines.map(line=>({...line,unitPriceCents:line.unitPriceCents??fallbackPrices?.[line.menuId]??null,ingredientCostPerServingCents:lineIngredientCost(line,fallbackCosts)}));
+ const draftTotals=calculateSaleFinancialTotals(draftLines);
+ const expensesRecorded=data.expenseVersion>0&&!expensesDirty;
+ const draftFinancial=calculateProfitTotals({date:draft.date,revenueCents:entered===0?null:draftTotals.revenueCents,ingredientCostCents:entered===0?null:draftTotals.ingredientCostCents,expensesCents:expenseTotal,expensesRecorded,salesDays:draft.version>0||entered>0?1:0});
+ const totalRevenue=draftFinancial.revenueCents;
+ const ingredientCosts=draftFinancial.ingredientCostCents;
+ const grossProfit=draftFinancial.grossProfitCents;
+ const netProfit=draftFinancial.netProfitCents;
+ const previousRevenue=data.previousDay.version?calculateSaleFinancialTotals(data.previousDay.lines).revenueCents:null;
  const revenueChange=totalRevenue!==null&&previousRevenue!==null?totalRevenue-previousRevenue:null;
  const servingsChange=data.previousDay.version?total-servingsFor(data.previousDay.lines):null;
 
@@ -186,7 +176,7 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
     {salesMenus.map(menu=>{
      const line=draft.lines.find(item=>item.menuId===menu.id)!;
      const price=line.unitPriceCents??fallbackPrices?.[menu.id]??null;
-     const rowRevenue=itemRevenue(line,fallbackPrices);
+     const rowRevenue=calculateSaleLineFinancials(draftLines.find(item=>item.menuId===menu.id)!).revenueCents;
      const Icon=menu.category==="Food"?UtensilsCrossed:Coffee;
      return <div key={menu.id} className="grid gap-4 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_144px_130px] sm:items-center sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
@@ -253,12 +243,12 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
 
   <details className="group mt-4 overflow-hidden rounded-2xl border border-border bg-white">
    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
-    <span><span className="block text-sm font-semibold">Other daily expenses</span><span className="mt-1 block text-xs text-muted-foreground">Optional · rent, utilities, wages, and similar costs</span></span>
+    <span><span className="block text-sm font-semibold">Other daily expenses</span><span className="mt-1 block text-xs text-muted-foreground">Rent, utilities, wages, and similar costs</span></span>
     <span className="flex items-center gap-3"><span className="text-sm font-semibold tabular-nums">{money.format(expenseTotal/100)}</span><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180"/></span>
    </summary>
    <form onSubmit={saveExpenses} className="border-t border-border">
     <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
-     <p className="text-xs text-muted-foreground">Do not include ingredient costs already counted in recipe costing.</p>
+     <p className="text-xs text-muted-foreground">Do not include ingredient costs already counted in recipe costing. Save an empty list to confirm no other expenses were recorded.</p>
      <Button type="button" variant="outline" size="sm" disabled={busy||expensesDraft.length>=100} onClick={()=>{setExpensesDraft(rows=>[...rows,{id:crypto.randomUUID(),category:"",amount:"",note:""}]);setExpensesDirty(true);}}>
       <Plus aria-hidden="true"/>Add expense
      </Button>
@@ -292,31 +282,29 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
 
   <details className="group mt-4 overflow-hidden rounded-2xl border border-border bg-white">
    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
-    <span><span className="block text-sm font-semibold">Profit estimate</span><span className="mt-1 block text-xs text-muted-foreground">Revenue minus estimated ingredient costs and recorded expenses</span></span>
+    <span><span className="block text-sm font-semibold">Profit estimate</span><span className="mt-1 block text-xs text-muted-foreground">Revenue minus estimated ingredient cost of sales and recorded expenses</span></span>
     <span className="flex items-center gap-3"><span className="text-sm font-semibold tabular-nums">{summaryValue(netProfit)}</span><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180"/></span>
    </summary>
    <div className="border-t border-border p-4 sm:p-5">
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-     {[["Revenue",totalRevenue],["Ingredient costs",ingredientCosts],["Gross profit",grossProfit],["Estimated net profit",netProfit]].map(([label,value])=><article key={label as string} className="rounded-xl bg-background p-3">
+     {[["Revenue",totalRevenue],["Ingredient cost of sales",ingredientCosts],["Gross profit",grossProfit],["Estimated net profit",netProfit]].map(([label,value])=><article key={label as string} className="rounded-xl bg-background p-3">
       <p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-base font-semibold tabular-nums">{summaryValue(value as number|null)}</p>
      </article>)}
     </div>
-    <p className="mt-3 text-xs leading-5 text-muted-foreground">Estimates use recipe ingredient quantities and saved prices. Missing costs are shown as “Not available”. Unrecorded expenses are not included.</p>
+    <p className="mt-3 text-xs leading-5 text-muted-foreground">Ingredient cost of sales is the saved recipe cost per serving multiplied by servings sold; it is an estimate, not an inventory movement or purchase total. Gross profit is revenue minus ingredient cost of sales. Estimated net profit subtracts only the saved other expenses, and is unavailable until an expense list is saved. It is not a complete accounting profit; unrecorded expenses are excluded. Missing prices or costs are shown as “Not available”.</p>
+    <p className="mt-2 text-xs text-muted-foreground">Gross profit margin: <span className="font-medium tabular-nums">{formatMargin(draftFinancial.grossProfitMarginPercent)}</span> · Estimated net margin: <span className="font-medium tabular-nums">{formatMargin(draftFinancial.netProfitMarginPercent)}</span></p>
     <div className="mt-4 overflow-x-auto rounded-xl border border-border">
-     <table className="w-full min-w-[650px] text-left text-sm">
-      <thead className="bg-slate-50 text-xs text-muted-foreground"><tr><th scope="col" className="px-4 py-3 font-medium">Menu item</th><th scope="col" className="px-4 py-3 font-medium">Servings</th><th scope="col" className="px-4 py-3 font-medium">Revenue</th><th scope="col" className="px-4 py-3 font-medium">Ingredient cost</th><th scope="col" className="px-4 py-3 font-medium">Contribution</th><th scope="col" className="px-4 py-3 font-medium">Recipe details</th></tr></thead>
+     <table className="w-full min-w-[960px] text-left text-sm">
+     <thead className="bg-slate-50 text-xs text-muted-foreground"><tr><th scope="col" className="px-4 py-3 font-medium">Menu item</th><th scope="col" className="px-4 py-3 font-medium">Servings sold</th><th scope="col" className="px-4 py-3 font-medium">Revenue</th><th scope="col" className="px-4 py-3 font-medium">Ingredient cost of sales</th><th scope="col" className="px-4 py-3 font-medium">Profit contribution</th><th scope="col" className="px-4 py-3 font-medium">Contribution margin</th><th scope="col" className="px-4 py-3 font-medium">Recipe details</th></tr></thead>
       <tbody className="divide-y divide-border">
        {salesMenus.map(menu=>{
         const line=draft.lines.find(item=>item.menuId===menu.id)!;
         const quantity=line.quantity;
-        const unitCost=lineIngredientCost(line,fallbackCosts);
-        const rowRevenue=itemRevenue(line,fallbackPrices);
-        const rowCost=quantity===null?null:quantity>0&&unitCost===null?null:quantity*(unitCost??0);
-        const contribution=rowRevenue===null||rowCost===null?null:rowRevenue-rowCost;
+        const itemFinancial=calculateSaleLineFinancials(draftLines.find(item=>item.menuId===menu.id)!);
         const snapshot=line.costSnapshot??(isNew?data.menuCosts[menu.id]:null);
         return <tr key={menu.id}>
          <th scope="row" className="px-4 py-3 font-medium">{menu.name}</th><td className="px-4 py-3">{quantity??"—"}</td>
-         <td className="px-4 py-3">{formatMoney(rowRevenue)}</td><td className="px-4 py-3">{formatMoney(rowCost)}</td><td className="px-4 py-3 font-medium">{formatMoney(contribution)}</td>
+         <td className="px-4 py-3">{formatMoney(itemFinancial.revenueCents)}</td><td className="px-4 py-3">{formatMoney(itemFinancial.ingredientCostCents)}</td><td className={`px-4 py-3 font-medium ${itemFinancial.contributionCents!==null&&itemFinancial.contributionCents<0?"text-red-700":""}`}>{formatMoney(itemFinancial.contributionCents)}</td><td className="px-4 py-3">{formatMargin(itemFinancial.contributionMarginPercent)}</td>
          <td className="px-4 py-3">{snapshot?<details><summary className="cursor-pointer text-primary">View</summary><ul className="mt-2 space-y-1 text-xs text-muted-foreground">{snapshot.ingredients.map(item=><li key={item.ingredientId}>{item.name}: {item.quantity} {item.unit} / batch · {item.batchCostCents===null?"cost not set":money.format(item.batchCostCents/100)}</li>)}</ul><p className="mt-2 text-xs text-muted-foreground">Per-serving cost: {formatMoney(snapshot.perServingCostCents)}</p></details>:"—"}</td>
         </tr>;
        })}
@@ -339,12 +327,12 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
      <div className="flex w-fit gap-1 rounded-lg bg-background p-1">{(["daily","weekly","monthly"] as const).map(period=><button key={period} type="button" disabled={busy} aria-pressed={trendPeriod===period} onClick={()=>void changeTrend(period)} className={`rounded-md px-3 py-2 text-xs font-medium capitalize ${trendPeriod===period?"bg-white text-primary shadow-sm":"text-muted-foreground hover:text-foreground"}`}>{period}</button>)}</div>
     </div>
     <div className="overflow-x-auto">
-     <table className="w-full min-w-[700px] text-left text-sm">
-      <thead className="bg-slate-50 text-xs text-muted-foreground"><tr><th scope="col" className="px-4 py-3 font-medium">Period</th><th scope="col" className="px-4 py-3 font-medium">Revenue</th><th scope="col" className="px-4 py-3 font-medium">Ingredient costs</th><th scope="col" className="px-4 py-3 font-medium">Other expenses</th><th scope="col" className="px-4 py-3 font-medium">Gross profit</th><th scope="col" className="px-4 py-3 font-medium">Estimated net profit</th></tr></thead>
-      <tbody className="divide-y divide-border">{data.trend.map(period=><tr key={period.date}><th scope="row" className="px-4 py-3 font-medium">{period.date}</th><td className="px-4 py-3">{summaryValue(period.revenueCents)}</td><td className="px-4 py-3">{summaryValue(period.ingredientCostCents)}</td><td className="px-4 py-3">{money.format(period.expensesCents/100)}</td><td className="px-4 py-3">{summaryValue(period.grossProfitCents)}</td><td className="px-4 py-3 font-medium">{summaryValue(period.netProfitCents)}</td></tr>)}</tbody>
+     <table className="w-full min-w-[900px] text-left text-sm">
+       <thead className="bg-slate-50 text-xs text-muted-foreground"><tr><th scope="col" className="px-4 py-3 font-medium">Period</th><th scope="col" className="px-4 py-3 font-medium">Revenue</th><th scope="col" className="px-4 py-3 font-medium">Ingredient cost of sales</th><th scope="col" className="px-4 py-3 font-medium">Recorded other expenses</th><th scope="col" className="px-4 py-3 font-medium">Gross profit</th><th scope="col" className="px-4 py-3 font-medium">Gross margin</th><th scope="col" className="px-4 py-3 font-medium">Estimated net profit</th><th scope="col" className="px-4 py-3 font-medium">Estimated net margin</th></tr></thead>
+       <tbody className="divide-y divide-border">{data.trend.map(period=><tr key={period.date}><th scope="row" className="px-4 py-3 font-medium">{period.date}</th><td className="px-4 py-3">{summaryValue(period.revenueCents)}</td><td className="px-4 py-3">{summaryValue(period.ingredientCostCents)}</td><td className="px-4 py-3">{period.expensesRecorded?money.format(period.expensesCents/100):"Not available"}</td><td className="px-4 py-3">{summaryValue(period.grossProfitCents)}</td><td className="px-4 py-3">{formatMargin(period.grossProfitMarginPercent)}</td><td className="px-4 py-3 font-medium">{summaryValue(period.netProfitCents)}</td><td className="px-4 py-3">{formatMargin(period.netProfitMarginPercent)}</td></tr>)}</tbody>
      </table>
     </div>
-    <p className="border-t border-border px-4 py-3 text-xs leading-5 text-muted-foreground sm:px-5">A missing price or cost makes that period’s profit estimate unavailable. Periods without saved sales show zero revenue.</p>
+    <p className="border-t border-border px-4 py-3 text-xs leading-5 text-muted-foreground sm:px-5">Missing prices, costs, or expense records make the corresponding estimate unavailable. Periods without saved sales show zero revenue.</p>
    </section>
   </details>
 
