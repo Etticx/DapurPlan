@@ -40,6 +40,28 @@ test("sales preserve blanks, persist corrections once per date and never change 
  raw.exec("CREATE TRIGGER fail_sales_history BEFORE INSERT ON sales_history BEGIN SELECT RAISE(ABORT,'test failure'); END");assert.throws(()=>store.save({...corrected.day,lines:input.lines},"owner"));assert.deepEqual(store.day(date),corrected.day);assert.equal(store.history(date).length,2);
  }finally{raw.close();store.close();inventory.close();rmSync(dir,{recursive:true,force:true});}
 });
+test("restoring a sales version creates an auditable version and preserves its saved financial snapshots",()=>{
+ const dir=mkdtempSync(join(tmpdir(),"dapur-sales-restore-"));const path=join(dir,"test.sqlite");const inventory=openInventoryStore(path);let store=openSalesStore(path);
+ try{
+  inventory.seed("owner");
+  const date=malaysiaDate();const initial=store.day(date);
+  const first=store.save({...initial,lines:initial.lines.map((line,index)=>({...line,quantity:index===0?3:null}))},"owner");
+  const firstLine=first.day.lines[0];
+  const second=store.save({...first.day,lines:first.day.lines.map((line,index)=>index===0?{...line,quantity:8}:line)},"staff");
+  const restored=store.restore({date,expectedVersion:second.day.version,version:first.day.version},"staff");
+  assert.equal(restored.day.version,3);assert.equal(restored.day.lines[0].quantity,3);
+  assert.equal(restored.day.lines[0].unitPriceCents,firstLine.unitPriceCents);
+  assert.equal(restored.day.lines[0].ingredientCostPerServingCents,firstLine.ingredientCostPerServingCents);
+  assert.deepEqual(restored.day.lines[0].costSnapshot,firstLine.costSnapshot);
+  assert.deepEqual(restored.history.map(version=>version.version),[3,2,1]);
+  assert.equal(restored.history[0].restoredFromVersion,1);
+  assert.equal(restored.history[1].day.lines[0].quantity,8);
+  assert.equal(restored.history[0].changedBy,"staff");assert.ok(restored.history.every(version=>Number.isFinite(Date.parse(version.changedAt))));
+  assert.throws(()=>store.restore({date,expectedVersion:second.day.version,version:first.day.version},"owner"),/changed/i);
+  store.close();store=openSalesStore(path);
+  assert.equal(store.day(date).version,3);assert.equal(store.history(date)[2].day.lines[0].quantity,3);
+ }finally{store.close();inventory.close();rmSync(dir,{recursive:true,force:true});}
+});
 test("sales reject negative, fractional, unknown, missing, future and all-blank entries",()=>{
  const d=emptySalesDay(malaysiaDate());const good={...d,lines:d.lines.map((l,i)=>({...l,quantity:i===0?0:null}))};assert.equal(validateSales(good).lines[0].quantity,0);
  for(const input of [d,null,{...good,date:"2099-01-01"},{...good,date:"2026-02-30"},{...good,version:-1},{...good,lines:good.lines.slice(1)},{...good,lines:good.lines.map(()=>good.lines[0])}])assert.throws(()=>validateSales(input));

@@ -128,6 +128,21 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
   }catch(e){setError(e instanceof Error?e.message:"Could not fill missing prices and costs.");}
   finally{setBusy(false);}
  }
+ async function restoreSalesVersion(version:number){
+  if(!window.confirm(`Restore version ${version} of ${shortDate(draft.date)} as a new saved version? Current and earlier versions will remain in history.${dirty||expensesDirty?" Unsaved edits will be discarded.":""}`))return;
+  setBusy(true);setError("");setMessage("");
+  try{
+   const response=await fetch("/api/sales/history",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:draft.date,expectedVersion:draft.version,version,trendPeriod})});
+   const result=await response.json();
+   if(!response.ok)throw new Error(result.error||"Could not restore this version.");
+   setData(result);setDraft(structuredClone(result.day));
+   setQuantityTexts(Object.fromEntries(result.day.lines.map((line:SaleLine)=>[line.menuId,line.quantity===null?"":String(line.quantity)])));
+   setQuantityErrors({});setDirty(false);
+   setExpensesDraft(initialExpenses(result.expenses));setExpensesDirty(false);
+   setMessage(`Version ${version} restored as version ${result.day.version}. All saved versions were preserved.`);
+  }catch(e){setError(e instanceof Error?e.message:"Could not restore this version. No changes were saved.");}
+  finally{setBusy(false);}
+ }
  async function saveExpenses(e:React.FormEvent){
   e.preventDefault();setError("");setMessage("");
   const expenses=expensesDraft.map(expense=>({category:expense.category,amountCents:parseExpenseAmount(expense.amount),note:expense.note}));
@@ -429,11 +444,35 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
    <div>
     {data.recent.length===0?<p className="p-4 text-sm text-muted-foreground">No sales saved yet.</p>:<div className="divide-y divide-border">{data.recent.map(day=><button type="button" key={day.date} disabled={busy} onClick={()=>void choose(day.date)} className={`block w-full p-4 text-left transition-colors hover:bg-secondary ${day.date===draft.date?"bg-blue-50/60":""}`}>
      <span className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">{shortDate(day.date)}</span><span className="text-sm font-semibold tabular-nums">{formatMoney(day.revenueCents)}</span></span>
-     <span className="mt-1 block text-xs text-muted-foreground">{day.entered}/{salesMenus.length} items entered · {day.total} servings · net estimate {formatMoney(day.netProfitCents)}{day.sourceDate?" · Imported historical data":""}</span>
+     <span className="mt-1 block text-xs text-muted-foreground">Version {day.version} · {day.entered}/{salesMenus.length} items entered · {day.total} servings · {day.netProfitCents===null?"net estimate unavailable; open to review missing inputs":`estimated net ${formatMoney(day.netProfitCents)}`}{day.sourceDate?" · Imported historical data":""}</span>
     </button>)}</div>}
     <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Changes to a saved date create a new record version; existing price and cost snapshots are preserved.</p>
    </div>
   </section>
+  {draft.version>0&&<section aria-labelledby="sales-version-history-heading" className="overflow-hidden rounded-xl border border-border bg-white">
+   <div className="border-b border-border p-4">
+    <h3 id="sales-version-history-heading" className="text-sm font-semibold">Version history for {shortDate(draft.date)}</h3>
+    <p className="mt-1 text-xs text-muted-foreground">The latest version is active. Earlier snapshots are read-only; restoring one saves a new version and keeps every existing version.</p>
+   </div>
+   <ol className="divide-y divide-border">
+    {data.history.map((entry,index)=><li key={entry.version} className="p-4">
+     <details className="group">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+       <span><span className="block text-sm font-semibold">{index===0?`Latest saved version · v${entry.version}`:`Earlier version · v${entry.version}`}</span><span className="mt-1 block text-xs text-muted-foreground">{new Date(entry.changedAt).toLocaleString("en-MY",{dateStyle:"medium",timeStyle:"short",timeZone:"Asia/Kuala_Lumpur"})} · saved by {entry.changedBy}{entry.restoredFromVersion?` · restored from v${entry.restoredFromVersion}`:""}{entry.financialCorrection?` · ${entry.financialCorrection}`:""}</span></span>
+       <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"/>
+      </summary>
+      <div className="mt-3 overflow-x-auto border-t border-border pt-3">
+       <table className="w-full min-w-[520px] text-left text-xs">
+        <thead className="text-muted-foreground"><tr><th scope="col" className="py-2 pr-3 font-medium">Menu item</th><th scope="col" className="py-2 pr-3 font-medium">Servings</th><th scope="col" className="py-2 pr-3 font-medium">Saved selling price</th><th scope="col" className="py-2 font-medium">Saved ingredient cost / serving</th></tr></thead>
+        <tbody className="divide-y divide-border">{entry.day.lines.map(line=><tr key={line.menuId}><th scope="row" className="py-2 pr-3 font-medium">{salesMenus.find(menu=>menu.id===line.menuId)?.name??line.menuId}</th><td className="py-2 pr-3">{line.quantity===null?"Not entered":line.quantity}</td><td className="py-2 pr-3">{formatMoney(line.unitPriceCents)}</td><td className="py-2">{formatMoney(line.ingredientCostPerServingCents)}</td></tr>)}</tbody>
+       </table>
+       {index>0&&<Button className="mt-3" variant="outline" size="sm" disabled={busy} onClick={()=>void restoreSalesVersion(entry.version)}>Restore version {entry.version}</Button>}
+      </div>
+     </details>
+    </li>)}
+   </ol>
+   <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Financial estimates use each version’s saved selling-price and recipe-cost snapshots. An unavailable value remains unavailable in that historical version.</p>
+  </section>}
    </div>
   </details>
   <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><TrendingUp size={15} aria-hidden="true" className="mt-0.5 shrink-0"/>Profit figures are estimates, not accounting statements. Sales entry does not deduct inventory.</p>

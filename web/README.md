@@ -166,6 +166,13 @@ cost snapshots, so later recipe or ingredient-price edits do not rewrite past es
 Missing selling or ingredient costs are shown as incomplete, not treated as zero. Sales
 and optional sold-out flags never deduct stock and do not yet feed a model. No sales are
 seeded automatically.
+Saved dates can be reopened from the recent-record list or selected with the business
+date picker. Each date retains its version snapshots, editor, and timestamp. Earlier
+versions are inspectable and can be restored as a new version; this preserves the
+current record and every prior version, including that version’s saved price and cost
+assumptions. Stale restore requests are rejected. Historical estimates with missing
+prices, ingredient costs, or an unrecorded expense list remain unavailable and their
+causes are shown when the date is reopened.
 
 Schema migrations 3 and 4 add sales records, versioned history and demo provenance;
 migration 6 adds per-item selling-price snapshots, and migration 8 adds recipe-cost

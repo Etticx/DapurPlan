@@ -47,6 +47,19 @@ test("financial breakdowns and historical detail are progressively disclosed",()
  assert.match(source,/<details className="group mt-4/);
 });
 
+test("saved sales versions expose timestamps, snapshots and non-destructive recovery",()=>{
+ assert.match(source,/Version \{day\.version\}/);
+ assert.match(source,/net estimate unavailable; open to review missing inputs/);
+ assert.match(source,/Version history for \{shortDate\(draft\.date\)\}/);
+ assert.match(source,/Latest saved version · v\$\{entry\.version\}/);
+ assert.match(source,/Earlier version · v\$\{entry\.version\}/);
+ assert.match(source,/Saved selling price/);
+ assert.match(source,/Saved ingredient cost \/ serving/);
+ assert.match(source,/restored from v\$\{entry\.restoredFromVersion\}/);
+ assert.match(source,/fetch\("\/api\/sales\/history"/);
+ assert.match(source,/Current and earlier versions will remain in history/);
+});
+
 test("money formatting uses an explicit unavailable label instead of an incomplete placeholder",()=>{
  assert.match(source,/function formatMoney\(cents:number\|null\)\{return cents===null\?"Not available"/);
  assert.match(source,/function summaryValue\(value:number\|null\)\{return value===null\?"Not available"/);

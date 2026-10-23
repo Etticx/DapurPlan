@@ -6,7 +6,7 @@ import {openRecipeStore} from "./recipe-store";
 import {openInventoryStore} from "./inventory-store";
 import {costRecipe,type RecipeCostSnapshot} from "./costing";
 import {addCents,calculateProfitTotals,calculateSaleFinancialTotals,type SaleFinancialInput} from "./sales-financials";
-import {SalesInputError,validateSales,validateExpenses,salesDate,emptySalesDay,type SalesDay,type SalesSummary,type SalesData,type SaleLine,type DailyExpense,type FinancialSummary,type SalesTrendPeriod} from "./sales";
+import {SalesInputError,validateSales,validateExpenses,salesDate,emptySalesDay,type SalesDay,type SalesSummary,type SalesData,type SaleLine,type DailyExpense,type FinancialSummary,type SalesTrendPeriod,type SalesVersion} from "./sales";
 import {addDays} from "./inventory";
 export class SalesConflictError extends Error {}
 export class ExpenseConflictError extends Error {}
@@ -29,7 +29,14 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
  db.prepare("INSERT OR IGNORE INTO schema_migrations VALUES (6,?)").run(new Date().toISOString());
 
  function provenance(date:string){return db.prepare("SELECT source_file AS sourceFile,source_date AS sourceDate,source_rows AS sourceRows FROM sales_provenance WHERE date=?").get(date) as {sourceFile:string;sourceDate:string;sourceRows:string}|undefined;}
- function history(date:string){salesDate(date);return db.prepare("SELECT version,changed_by AS changedBy,changed_at AS changedAt,snapshot FROM sales_history WHERE date=? ORDER BY version DESC").all(date);}
+ function history(date:string):SalesVersion[]{
+  salesDate(date);
+  const rows=db.prepare("SELECT version,changed_by AS changedBy,changed_at AS changedAt,snapshot FROM sales_history WHERE date=? ORDER BY version DESC").all(date) as {version:number;changedBy:string;changedAt:string;snapshot:string}[];
+  return rows.map(row=>{
+   const snapshot=JSON.parse(row.snapshot) as SalesDay&{financialCorrection?:string;restoredFromVersion?:number};
+   return {version:row.version,changedBy:row.changedBy,changedAt:row.changedAt,day:snapshot,financialCorrection:snapshot.financialCorrection,restoredFromVersion:snapshot.restoredFromVersion};
+  });
+ }
  function day(date:string):SalesDay{
   salesDate(date);
   const d=db.prepare("SELECT date,version,updated_by AS updatedBy,updated_at AS updatedAt FROM sales_days WHERE date=?").get(date) as Omit<SalesDay,"lines">|undefined;
@@ -83,7 +90,7 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
    return calculateProfitTotals({date,revenueCents,ingredientCostCents,expensesCents:bucket.expenses,expensesRecorded:bucket.expensesRecorded,salesDays:bucket.salesDays});
   });
  }
- function getData(date:string,period:SalesTrendPeriod):SalesData{return {day:day(date),previousDay:day(addDays(date,-1)),recent:recent(),menuPrices:menuPrices(),menuCosts:menuCosts(),...expenseState(date),trend:trend(period,date),trendPeriod:period};}
+ function getData(date:string,period:SalesTrendPeriod):SalesData{return {day:day(date),previousDay:day(addDays(date,-1)),recent:recent(),history:history(date),menuPrices:menuPrices(),menuCosts:menuCosts(),...expenseState(date),trend:trend(period,date),trendPeriod:period};}
  function spreadsheetSales():SalesDay[]{
   const dates=db.prepare("SELECT date FROM sales_days ORDER BY date").all() as {date:string}[];
   return dates.map(({date})=>day(date));
@@ -116,6 +123,41 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
    const saved=day(input.date);db.prepare("INSERT INTO sales_history VALUES (?,?,?,?,?)").run(input.date,version,actor,now,JSON.stringify(saved));
   }).immediate();
   return getData(input.date,period);
+ }
+ function restore(value:unknown,actor:string,period:SalesTrendPeriod="daily"){
+  if(actor!=="owner"&&actor!=="staff")throw new SalesInputError("Owner access required.");
+  if(!value||typeof value!=="object"||Array.isArray(value))throw new SalesInputError("Choose a saved sales version.");
+  const input=value as {date?:unknown;expectedVersion?:unknown;version?:unknown};
+  const date=salesDate(input.date);
+  if(!Number.isSafeInteger(input.expectedVersion)||(input.expectedVersion as number)<1||!Number.isSafeInteger(input.version)||(input.version as number)<1||(input.version as number)>=(input.expectedVersion as number))throw new SalesInputError("Choose an earlier saved version to restore.");
+  db.transaction(()=>{
+   const current=day(date);
+   if(current.version!==input.expectedVersion)throw new SalesConflictError("Sales for this date changed in another window. Reload before restoring a version.");
+   const row=db.prepare("SELECT snapshot FROM sales_history WHERE date=? AND version=?").get(date,input.version) as {snapshot:string}|undefined;
+   if(!row)throw new SalesInputError("That saved version is no longer available.");
+   const historical=JSON.parse(row.snapshot) as SalesDay;
+   if(historical.date!==date||historical.version!==input.version||!Array.isArray(historical.lines))throw new SalesInputError("That saved version is invalid.");
+   const historicalLines=historical.lines.map(line=>({
+    ...line,
+    soldOut:line.soldOut??false,
+    unitPriceCents:line.unitPriceCents??null,
+    ingredientCostPerServingCents:line.ingredientCostPerServingCents??null,
+    costSnapshot:line.costSnapshot??null,
+   }));
+   const validated=validateSales({date,version:current.version,lines:historicalLines});
+   const lines=validated.lines.map(line=>{
+    const previous=historicalLines.find(saved=>saved.menuId===line.menuId);
+    if(!previous||![previous.unitPriceCents,previous.ingredientCostPerServingCents].every(amount=>amount===null||(Number.isSafeInteger(amount)&&amount>=0&&amount<=100000000))||(previous.costSnapshot!==null&&(typeof previous.costSnapshot!=="object"||previous.costSnapshot.menuId!==line.menuId)))throw new SalesInputError("That saved version has invalid financial snapshots.");
+    return {...line,unitPriceCents:previous.unitPriceCents,ingredientCostPerServingCents:previous.ingredientCostPerServingCents,costSnapshot:previous.costSnapshot};
+   });
+   const now=new Date().toISOString();const version=current.version+1;
+   db.prepare("UPDATE sales_days SET version=?,updated_by=?,updated_at=? WHERE date=?").run(version,actor,now,date);
+   const update=db.prepare("UPDATE sales_lines SET quantity=?,sold_out=?,unit_price_cents=?,ingredient_cost_per_serving_cents=?,cost_snapshot=? WHERE date=? AND menu_id=?");
+   for(const line of lines)update.run(line.quantity,line.soldOut?1:0,line.unitPriceCents,line.ingredientCostPerServingCents,line.costSnapshot?JSON.stringify(line.costSnapshot):null,date,line.menuId);
+   const saved=day(date);
+   db.prepare("INSERT INTO sales_history VALUES (?,?,?,?,?)").run(date,version,actor,now,JSON.stringify({...saved,restoredFromVersion:input.version}));
+  }).immediate();
+  return getData(date,period);
  }
  function fillMissingFinancials(value:unknown,actor:string,period:SalesTrendPeriod="daily"){
   if(actor!=="owner")throw new SalesInputError("Only the owner can fill missing prices and costs.");
@@ -168,5 +210,5 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
   }
   return {imported,skipped,manualEntryDate:demoSales.days[6].date};
  }).immediate();}
- return {day,recent,menuPrices,menuCosts,expenseState,financial,trend,getData,spreadsheetSales,spreadsheetExpenses,save,fillMissingFinancials,saveExpenses,history,importDemo,close:()=>{db.close();recipes.close();inventory.close();}};
+ return {day,recent,menuPrices,menuCosts,expenseState,financial,trend,getData,spreadsheetSales,spreadsheetExpenses,save,restore,fillMissingFinancials,saveExpenses,history,importDemo,close:()=>{db.close();recipes.close();inventory.close();}};
 }
