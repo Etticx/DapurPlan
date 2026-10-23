@@ -45,7 +45,8 @@ Replit hosting and Runpod inference are later integration steps.
 - `/login` accepts the demo account; `/home` checks the signed session on the server.
 - Sign out clears the HttpOnly session cookie; sessions expire after 8 hours.
 - This is simulated owner authentication for the prototype, not a real account system.
-- Before publishing, set `DEMO_SESSION_SECRET` to a random value of at least 32 characters.
+- `DEMO_SESSION_SECRET` protects session integrity only; it does not make the shared demo passwords safe.
+- Keep the app private and bound to localhost. Do not expose the demo accounts to the public internet.
 - Staff roles, real accounts and restaurant features are future commits.
 
 UI primitives use shadcn/ui's open-code conventions (MIT), Radix Slot, CVA and Tailwind.
@@ -183,7 +184,10 @@ plan. Planning CSV is read-only because it is generated from current sales, reci
 and stock inputs. Importing source data does not automatically regenerate a forecast
 or approve a preparation plan.
 
-Imports are limited to 1 MB and 5,000 rows. Keep the exported headers and IDs intact.
+Imports are limited to 1 MB and 5,000 rows. Upload size is enforced while reading,
+including requests without a `Content-Length` header, and CSV text must be valid UTF-8.
+Money fields accept no more than two decimal places rather than silently rounding
+spreadsheet values. Keep the exported headers and IDs intact.
 Version columns are checked against the latest saved record; changed records are
 rejected with row-level errors instead of overwriting newer edits. Imports save by
 record group, not as one all-or-nothing file: successful groups remain saved if other

@@ -117,8 +117,11 @@ features of this saved model.
 
 Output `predicted_servings` is a non-negative decimal, matching notebook clipping.
 The app rounds preparation defaults up to whole servings and lets the owner adjust them before approval.
-`model_id` is the artifact's SHA-256; `synthetic_model` is true. The exported test
-MAE is 3.088 on synthetic regular-demand data, not verified restaurant performance.
+`model_id` is the artifact's SHA-256. `synthetic_model` identifies whether the saved
+forecast used synthetic-only training data; the checked-in model reports `true`.
+Its test MAE is 3.088 on synthetic regular-demand data, not verified restaurant
+performance. After successful local retraining, saved forecasts identify the real-data
+model used at that time.
 
 The full fitted preprocessing pipeline is used. Model libraries match the export's
 `model/requirements.txt`; incompatible scikit-learn versions fail at startup.
@@ -128,6 +131,24 @@ Only load the trusted team artifact: joblib files can execute Python during load
 This service is bound to loopback and has no deployed authentication/CORS integration.
 Add service authentication before external hosting. Never expose it publicly as-is.
 Frontend login and owner approval remain in the Next.js app.
+
+### Training from real sales
+
+The checked-in model is trained on synthetic data and is not a validated restaurant
+forecast. To retrain locally, collect at least 84 complete, non-demo sales days in
+the SQLite database, then run from the repository root:
+
+```powershell
+.\venv\Scripts\python.exe scripts\train_forecast.py --database web\data\dapurplan.sqlite
+```
+
+Training reads the database in read-only mode, excludes imported demo-provenance
+days, incomplete days and sold-out observations, and validates chronologically
+against a last-week baseline. The model is replaced only when the Random Forest
+improves validation MAE by at least 5% without materially regressing any menu;
+otherwise the validated baseline is saved. The report includes the selected model
+and model-artifact hash. Restart FastAPI after retraining. With fewer than 84 complete
+days the command stops without changing the existing model.
 
 ## Tests
 
@@ -139,4 +160,3 @@ $env:PYTHONPATH = "src"
 Tests compare HTTP responses against direct pipeline predictions, validate five-item
 batches, reject invalid inputs, check clipping/non-finite outputs and missing-model startup.
 No sales records, stock or trained parameters are changed by these tests.
-

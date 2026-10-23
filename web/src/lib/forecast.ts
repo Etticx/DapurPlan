@@ -18,7 +18,7 @@ export async function requestForecast(inputs:ForecastInput[],url=process.env.FOR
  try{response=await fetcher(`${url.replace(/\/$/,"")}/predict`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(inputs),signal:AbortSignal.timeout(15000),cache:"no-store"});}catch{throw new ForecastServiceError("The model service is unavailable. Start FastAPI on port 8000 and try again.");}
  if(!response.ok)throw new ForecastServiceError("The model service could not generate a forecast. Please check FastAPI and try again.");
  let body;try{body=await response.json();}catch{throw new ForecastServiceError("The model service returned an invalid response.");}
- if(typeof body?.model_id!=="string"||!/^[a-f0-9]{64}$/.test(body.model_id)||body.synthetic_model!==true||!Array.isArray(body.predictions)||body.predictions.length!==salesMenus.length)throw new ForecastServiceError("The model response did not match the expected five menus.");
+ if(typeof body?.model_id!=="string"||!/^[a-f0-9]{64}$/.test(body.model_id)||typeof body.synthetic_model!=="boolean"||!Array.isArray(body.predictions)||body.predictions.length!==salesMenus.length)throw new ForecastServiceError("The model response did not match the expected five menus.");
  const predictions=salesMenus.map(m=>{const matches=body.predictions.filter((p:{item?:unknown})=>p?.item===m.name);if(matches.length!==1||typeof matches[0].predicted_servings!=="number"||!Number.isFinite(matches[0].predicted_servings)||matches[0].predicted_servings<0)throw new ForecastServiceError("The model returned invalid serving quantities.");return {menuId:m.id,item:m.name,predictedServings:matches[0].predicted_servings};});
- return {modelId:body.model_id as string,syntheticModel:true,predictions};
+ return {modelId:body.model_id as string,syntheticModel:body.synthetic_model,predictions};
 }

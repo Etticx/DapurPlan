@@ -12,9 +12,10 @@ import pandas as pd
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
 from sklearn.exceptions import InconsistentVersionWarning
+from dapurplan.forecast_model import FEATURES
 
 MODEL_DIR = Path(__file__).resolve().parents[2] / "model"
-FEATURES = ["item", "day_of_week", "sales_yesterday", "sales_last_week", "average_previous_7_days"]
+SUPPORTED_MODELS = {"Random Forest", "Last-week baseline"}
 Menu = Literal["Chicken rice", "Fried kuey teow with egg", "Nasi lemak with egg", "Kopi O ais", "Iced lemon tea"]
 SalesNumber = Annotated[float, Field(ge=0, le=1_000_000)]
 
@@ -43,15 +44,17 @@ class Prediction(BaseModel):
 
 class ForecastResponse(BaseModel):
     predictions: list[Prediction]
-    synthetic_model: bool = True
+    synthetic_model: bool
     model_id: str
 
 def create_app(model_dir: Path = MODEL_DIR):
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         report = json.loads((model_dir / "training_report.json").read_text(encoding="utf-8"))
-        if report["features"] != FEATURES or report["selected_model"] != "Random Forest":
+        if report.get("features") != FEATURES or report.get("selected_model") not in SUPPORTED_MODELS:
             raise RuntimeError("The model report does not match this service's input contract.")
+        if not isinstance(report.get("synthetic_only"), bool):
+            raise RuntimeError("The model report must identify whether training data was synthetic.")
         model_path = model_dir / "sales_forecast_pipeline.joblib"
         # Load only the trusted, team-exported pipeline. Never accept model uploads.
         with warnings.catch_warnings():
@@ -59,18 +62,25 @@ def create_app(model_dir: Path = MODEL_DIR):
             pipeline = joblib.load(model_path)
         if list(pipeline.feature_names_in_) != FEATURES:
             raise RuntimeError("Pipeline columns do not match the model report.")
+        expected_hash = report.get("model_sha256")
+        actual_hash = hashlib.sha256(model_path.read_bytes()).hexdigest()
+        if expected_hash is not None and expected_hash != actual_hash:
+            raise RuntimeError("The model artifact does not match the training report.")
         app.state.pipeline = pipeline
-        app.state.model_id = hashlib.sha256(model_path.read_bytes()).hexdigest()
+        app.state.model_id = actual_hash
+        app.state.synthetic_model = report["synthetic_only"]
+        app.state.model_name = report["selected_model"]
         yield
         del app.state.pipeline
 
     app = FastAPI(title="DapurPlan Forecast API", version="0.1.0", lifespan=lifespan,
-                  description="Local one-day-ahead prediction from the team's synthetic-data model. Monday=0, Sunday=6. No database access.")
+                  description="Local one-day-ahead predictions. Monday=0, Sunday=6. No database access.")
 
     @app.get("/health")
     def health(request: Request):
-        return {"status": "ready", "model": "Random Forest", "model_id": request.app.state.model_id,
-                "features": FEATURES, "weekday_numbering": "Monday=0, Sunday=6", "synthetic_model": True}
+        return {"status": "ready", "model": request.app.state.model_name, "model_id": request.app.state.model_id,
+                "features": FEATURES, "weekday_numbering": "Monday=0, Sunday=6",
+                "synthetic_model": request.app.state.synthetic_model}
 
     @app.post("/predict", response_model=ForecastResponse)
     def predict(payload: ForecastRequest, request: Request):
@@ -83,7 +93,8 @@ def create_app(model_dir: Path = MODEL_DIR):
             raise HTTPException(status_code=503, detail="Prediction unavailable. Please try again.") from error
         # Match the notebook: clip negatives and retain decimals. Preparation rounding comes later.
         output = np.maximum(output, 0)
-        return ForecastResponse(model_id=request.app.state.model_id, predictions=[
+        return ForecastResponse(model_id=request.app.state.model_id,
+            synthetic_model=request.app.state.synthetic_model, predictions=[
             Prediction(item=row.item, predicted_servings=float(value))
             for row, value in zip(payload.root, output, strict=True)
         ])

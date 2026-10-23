@@ -1,10 +1,36 @@
 export type CsvRow=Record<string,string>;
 export class CsvInputError extends Error {}
+export class CsvPayloadTooLargeError extends CsvInputError {}
+
+export async function readBoundedBody(body:ReadableStream<Uint8Array>|null,maxBytes:number):Promise<Uint8Array>{
+ if(!body)throw new CsvInputError("Choose a CSV file and try again.");
+ const reader=body.getReader();
+ const chunks:Uint8Array[]=[];
+ let length=0;
+ try{
+  while(true){
+   const {done,value}=await reader.read();
+   if(done)break;
+   length+=value.byteLength;
+   if(length>maxBytes){
+    await reader.cancel();
+    throw new CsvPayloadTooLargeError("CSV files may not exceed 1 MB.");
+   }
+   chunks.push(value);
+  }
+ }finally{
+  reader.releaseLock();
+ }
+ const result=new Uint8Array(length);
+ let offset=0;
+ for(const chunk of chunks){result.set(chunk,offset);offset+=chunk.byteLength;}
+ return result;
+}
 
 export function stringifyCsv(headers:string[],rows:Record<string,string|number|boolean|null|undefined>[]):string{
  const cell=(value:string|number|boolean|null|undefined)=>{
   let text=value===null||value===undefined?"":String(value);
-  if(/^[=+\-@]/.test(text))text="'"+text;
+  if(/^[\t\r\n ]*[=+\-@]/.test(text))text="'"+text;
   return /[",\r\n]/.test(text)?`"${text.replaceAll('"','""')}"`:text;
  };
  return [headers,...rows.map(row=>headers.map(header=>row[header]??""))].map(row=>row.map(cell).join(",")).join("\r\n")+"\r\n";
@@ -45,7 +71,7 @@ export function parseCsv(source:string):{headers:string[];rows:CsvRow[]}{
   if(values.length!==headers.length)throw new CsvInputError(`CSV row ${index+2} has ${values.length} cells; expected ${headers.length}.`);
   return Object.fromEntries(headers.map((header,column)=>{
    const value=values[column];
-   return [header,/^'[=+\-@]/.test(value)?value.slice(1):value];
+   return [header,/^'[\t\r\n ]*[=+\-@]/.test(value)?value.slice(1):value];
   }));
  });
  if(rows.length>5000)throw new CsvInputError("CSV files may contain at most 5,000 data rows.");
@@ -71,6 +97,13 @@ export function csvDecimal(value:string,label:string,options:{min?:number;max?:n
  const number=Number(value);
  if(!Number.isFinite(number)||number<(options.min??0)||number>(options.max??Number.MAX_SAFE_INTEGER))throw new CsvInputError(`${label} is outside the allowed range.`);
  return number;
+}
+
+export function csvMoneyCents(value:string,label:string,options:{blank?:boolean}={}):number|null{
+ if(value===""&&options.blank)return null;
+ if(!/^(?:\d+(?:\.\d{0,2})?|\.\d{1,2})$/.test(value))throw new CsvInputError(`${label} must have no more than two decimal places.`);
+ const amount=csvDecimal(value,label,{max:1_000_000});
+ return amount===null?null:Math.round(amount*100);
 }
 
 export function csvBoolean(value:string,label:string):boolean{

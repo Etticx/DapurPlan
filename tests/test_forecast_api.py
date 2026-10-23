@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import tempfile
+import hashlib
 import unittest
 from unittest.mock import patch
 
@@ -9,6 +10,7 @@ import numpy as np
 import pandas as pd
 from fastapi.testclient import TestClient
 from dapurplan.api import create_app, MODEL_DIR, FEATURES
+from dapurplan.forecast_model import LastWeekBaseline
 
 class ForecastTests(unittest.TestCase):
     @classmethod
@@ -22,12 +24,39 @@ class ForecastTests(unittest.TestCase):
         cls.context.__exit__(None, None, None)
 
     def test_health_and_saved_pipeline_prediction_match(self):
-        self.assertEqual(self.client.get("/health").status_code, 200)
+        health = self.client.get("/health")
+        self.assertEqual(health.status_code, 200)
+        self.assertTrue(health.json()["synthetic_model"])
         result = self.client.post("/predict", json=self.payload)
         self.assertEqual(result.status_code, 200)
+        self.assertTrue(result.json()["synthetic_model"])
         expected = np.maximum(joblib.load(MODEL_DIR / "sales_forecast_pipeline.joblib").predict(pd.DataFrame(self.payload, columns=FEATURES)), 0)
         self.assertAlmostEqual(result.json()["predictions"][0]["predicted_servings"], float(expected[0]), places=12)
         print("Example prediction:", result.json()["predictions"])
+
+    def test_real_sales_baseline_is_reported_and_served(self):
+        with tempfile.TemporaryDirectory() as folder:
+            model_dir = Path(folder)
+            baseline = LastWeekBaseline().fit(
+                pd.DataFrame([self.payload[0]], columns=FEATURES),
+                np.array([39.0]),
+            )
+            model_path = model_dir / "sales_forecast_pipeline.joblib"
+            joblib.dump(baseline, model_path)
+            report = json.loads((MODEL_DIR / "training_report.json").read_text(encoding="utf-8"))
+            report.update(
+                selected_model="Last-week baseline",
+                synthetic_only=False,
+                model_sha256=hashlib.sha256(model_path.read_bytes()).hexdigest(),
+            )
+            (model_dir / "training_report.json").write_text(json.dumps(report), encoding="utf-8")
+
+            with TestClient(create_app(model_dir)) as client:
+                self.assertFalse(client.get("/health").json()["synthetic_model"])
+                result = client.post("/predict", json=self.payload)
+                self.assertEqual(result.status_code, 200)
+                self.assertFalse(result.json()["synthetic_model"])
+                self.assertEqual(result.json()["predictions"][0]["predicted_servings"], 39.0)
 
     def test_all_five_items(self):
         menus = ["Chicken rice", "Fried kuey teow with egg", "Nasi lemak with egg", "Kopi O ais", "Iced lemon tea"]

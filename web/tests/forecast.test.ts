@@ -11,6 +11,13 @@ test("invalid model responses and connection errors fail clearly",async()=>{
  await assert.rejects(()=>requestForecast([],"http://test",async()=>{throw new Error("offline");}),/unavailable/);
  await assert.rejects(()=>requestForecast([],"http://test",async()=>Response.json({predictions:[]})),/five menus/);
 });
+test("model response preserves whether it was trained on synthetic data",async()=>{
+ const predictions=["Chicken rice","Fried kuey teow with egg","Nasi lemak with egg","Kopi O ais","Iced lemon tea"].map(item=>({item,predicted_servings:12.5}));
+ const real=await requestForecast([],"http://test",async()=>Response.json({model_id:"a".repeat(64),synthetic_model:false,predictions}));
+ const synthetic=await requestForecast([],"http://test",async()=>Response.json({model_id:"b".repeat(64),synthetic_model:true,predictions}));
+ assert.equal(real.syntheticModel,false);
+ assert.equal(synthetic.syntheticModel,true);
+});
 test("saved forecasts persist and reject sales changed during prediction",()=>{
  const dir=mkdtempSync(join(tmpdir(),"dapur-forecast-"));const path=join(dir,"test.sqlite");const sales=openSalesStore(path);let store=openForecastStore(path);
  try{const target=store.view().targetDate;for(let i=0;i<7;i++){const d=emptySalesDay(addDays(target,i-7));sales.save({...d,lines:d.lines.map(l=>({...l,quantity:40}))},"owner");}

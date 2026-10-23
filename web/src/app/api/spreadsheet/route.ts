@@ -11,7 +11,7 @@ import {SalesConflictError,ExpenseConflictError} from "@/lib/sales-store";
 import {InventoryConflictError,InventoryPermissionError} from "@/lib/inventory-store";
 import {RecipeConflictError,RecipeNotFoundError} from "@/lib/recipe-store";
 import {RecipeInputError} from "@/lib/recipe-validation";
-import {CsvInputError,csvBoolean,csvDecimal,csvInteger,parseCsv,requireCsvColumns,stringifyCsv} from "@/lib/spreadsheet";
+import {CsvInputError,CsvPayloadTooLargeError,csvBoolean,csvDecimal,csvInteger,csvMoneyCents,parseCsv,readBoundedBody,requireCsvColumns,stringifyCsv} from "@/lib/spreadsheet";
 
 export const runtime="nodejs";
 const exportTypes=["sales","expenses","inventory","recipes","ingredient-prices","planning"] as const;
@@ -114,10 +114,6 @@ function validateOrigin(request:Request){
  const origin=request.headers.get("origin");
  if(origin&&new URL(origin).host!==request.headers.get("host"))throw new CsvInputError("Request not allowed.");
 }
-function parseMoney(value:string,label:string,blank=false){
- const amount=csvDecimal(value,label,{max:1000000,blank});
- return amount===null?null:Math.round(amount*100);
-}
 export async function GET(request:Request){
  if(!await getSession())return NextResponse.json({error:"Sign in first."},{status:401});
  const type=new URL(request.url).searchParams.get("type") as ExportType|null;
@@ -130,20 +126,27 @@ export async function POST(request:Request){
  const session=await getSession();
  if(!session)return NextResponse.json({error:"Sign in first."},{status:401});
  try{validateOrigin(request);}catch{return NextResponse.json({error:"Request not allowed."},{status:403});}
- const length=Number(request.headers.get("content-length")??0);
- if(length>1_100_000)return NextResponse.json({error:"CSV files may not exceed 1 MB."},{status:413});
+ const contentLength=request.headers.get("content-length");
+ if(contentLength!==null&&(!/^\d+$/.test(contentLength)||Number(contentLength)>1_100_000))return NextResponse.json({error:"CSV files may not exceed 1 MB."},{status:413});
  let type:ExportType;let source:string;
  try{
-  const form=await request.formData();
+  const body=await readBoundedBody(request.body,1_100_000);
+  const requestHeaders=new Headers(request.headers);
+  requestHeaders.delete("content-length");
+  requestHeaders.delete("transfer-encoding");
+  const boundedBody=new ArrayBuffer(body.byteLength);
+  new Uint8Array(boundedBody).set(body);
+  const form=await new Request(request.url,{method:"POST",headers:requestHeaders,body:boundedBody}).formData();
   const rawType=form.get("type");const file=form.get("file");
   if(typeof rawType!=="string"||!exportTypes.includes(rawType as ExportType)||!(file instanceof File))throw new CsvInputError("Choose a supported data type and CSV file.");
   type=rawType as ExportType;
   if(type==="planning")throw new CsvInputError("Planning is generated from sales, recipes, and stock. It can be exported but not imported.");
   if((type==="recipes"||type==="ingredient-prices")&&session.role!=="owner")return NextResponse.json({error:"Only the owner can import recipe or ingredient price changes."},{status:403});
   if(file.size>1_000_000)throw new CsvInputError("CSV files may not exceed 1 MB.");
-  source=await file.text();
+  source=new TextDecoder("utf-8",{fatal:true}).decode(await file.arrayBuffer());
  }catch(error){
-  return NextResponse.json({error:error instanceof CsvInputError?error.message:"Upload a valid CSV file."},{status:400});
+  const status=error instanceof CsvPayloadTooLargeError?413:400;
+  return NextResponse.json({error:error instanceof CsvInputError?error.message:"Upload a valid UTF-8 CSV file."},{status});
  }
  let parsed;
  try{parsed=parseCsv(source);requireCsvColumns(parsed.headers,headers[type]);}
@@ -205,7 +208,7 @@ export async function POST(request:Request){
       const expenses=group.rows.flatMap(({data,row})=>{
        if(data.operation!=="upsert")throw new CsvInputError(`Row ${row} operation must be upsert or clear-date.`);
        if(data.category===""&&data.amount_rm==="")return [];
-       const amountCents=parseMoney(data.amount_rm,`Row ${row} amount_rm`);
+       const amountCents=csvMoneyCents(data.amount_rm,`Row ${row} amount_rm`);
        if(!data.category.trim()||amountCents===null||amountCents<1)throw new CsvInputError(`Row ${row} needs a category and an amount of at least RM 0.01.`);
        return [{category:data.category,amountCents,note:data.note}];
       });
@@ -251,7 +254,7 @@ export async function POST(request:Request){
    for(const [index,data] of parsed.rows.entries()){
     const row=index+2;
     try{
-     const costCents=parseMoney(data.cost_rm,`Row ${row} cost_rm`,true);
+     const costCents=csvMoneyCents(data.cost_rm,`Row ${row} cost_rm`,{blank:true});
      const quantity=csvDecimal(data.price_quantity,`Row ${row} price_quantity`,{min:0.001});
      const version=csvInteger(data.version,`Row ${row} version`,{max:1_000_000});
      const current=getInventoryStore().list().prices?.find(price=>price.ingredientId===data.ingredient_id);
@@ -269,7 +272,7 @@ export async function POST(request:Request){
     try{
      const version=csvInteger(data.version,`Row ${row} version`,{min:1,max:1_000_000});
      const servings=csvInteger(data.batch_servings,`Row ${row} batch_servings`,{min:1,max:10_000});
-     const priceCents=parseMoney(data.menu_price_rm,`Row ${row} menu_price_rm`,true);
+     const priceCents=csvMoneyCents(data.menu_price_rm,`Row ${row} menu_price_rm`,{blank:true});
      const current=groups.get(data.menu_id);
      if(current&&(current.version!==version||current.servings!==servings||current.priceCents!==priceCents))throw new CsvInputError("Recipe metadata must match across its ingredient rows.");
      if(current)current.rows.push({row,data});else groups.set(data.menu_id,{version:version!,servings:servings!,priceCents,rows:[{row,data}]});
