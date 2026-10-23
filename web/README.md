@@ -154,6 +154,11 @@ collapsible section. Totals update while editing; invalid quantity text remains 
 field with a local correction message. Save is version checked, and Cancel asks before
 discarding edits. Historical imported rows are identified as imported data; the sales
 form does not show a date-specific demo prompt.
+The estimate lists the saved expense categories and amounts it includes, identifies
+missing sold-item prices or ingredient costs, and links to the relevant correction
+screen. Ingredient-price links open and focus the selected price field. Unsaved expense
+edits are not described as included. A negative item contribution means estimated
+ingredient cost exceeds revenue; this can reflect recipe or cost data as well as price.
 
 Each sale snapshots the selling price, recipe quantities, ingredient prices and
 estimated ingredient cost per serving on first entry. Corrections keep those original

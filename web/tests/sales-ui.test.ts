@@ -5,6 +5,7 @@ import {join} from "node:path";
 
 const source=readFileSync(join(import.meta.dirname,"../src/components/sales-editor.tsx"),"utf8");
 const recipesSource=readFileSync(join(import.meta.dirname,"../src/components/recipe-editor.tsx"),"utf8");
+const inventorySource=readFileSync(join(import.meta.dirname,"../src/components/inventory-editor.tsx"),"utf8");
 
 test("daily sales screen leads with the core entry and saves no date-specific demo data",()=>{
  assert.match(source,/<h1 className="text-3xl font-semibold tracking-tight">Daily sales<\/h1>/);
@@ -60,7 +61,25 @@ test("financial details distinguish incomplete expenses and negative contributio
  assert.match(source,/Review \{menu\.name\} recipe/);
  assert.match(source,/recipes\?menu=\$\{encodeURIComponent\(menu\.id\)\}/);
  assert.match(recipesSource,/new URLSearchParams\(window\.location\.search\)\.get\("menu"\)/);
- assert.match(source,/Unrecorded expenses are not included/);
+ assert.match(source,/expenses not recorded here are excluded/);
+ assert.match(source,/Other expenses included/);
+ assert.match(source,/expensesRecorded\?includedExpenses\.length===0/);
+ assert.match(source,/expensesDirty&&<p className="mt-2 text-sm text-amber-800">Expense changes are unsaved and are not included in this estimate/);
+ assert.match(source,/Estimate incomplete: check these required inputs/);
+ assert.match(source,/ingredient price for \$\{ingredient\.name\} is missing/);
+ assert.match(source,/inventory\?ingredient=\$\{encodeURIComponent\(ingredient\.ingredientId\)\}#ingredient-price-setup/);
+ assert.match(source,/negative value means the estimated cost exceeds revenue; it does not by itself mean the selling price is wrong/);
+ assert.match(source,/calculated gross profit minus the other expenses saved for this date/);
+ assert.match(source,/Calculated from quantities entered and saved selling prices/);
+ assert.match(source,/expensesRef\.current\.open=true/);
+});
+
+test("ingredient-price warnings navigate to and focus the matching setup field",()=>{
+ assert.match(inventorySource,/ref=\{ingredientPriceSetupRef\} id="ingredient-price-setup"/);
+ assert.match(inventorySource,/if\(window\.location\.hash!=="#ingredient-price-setup"\)return/);
+ assert.match(inventorySource,/setup\.open=true/);
+ assert.match(inventorySource,/document\.getElementById\(`price-\$\{ingredientId\}`\)/);
+ assert.match(inventorySource,/target\?\.focus\(\{preventScroll:true\}\)/);
 });
 
 test("serving and expense fields use purpose-built text keyboards and quick steppers",()=>{
