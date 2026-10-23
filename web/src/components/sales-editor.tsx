@@ -1,12 +1,12 @@
 "use client";
 
-import {useState} from "react";
-import {CalendarDays,ChevronDown,Coffee,Plus,RotateCcw,Save,Trash2,TrendingUp,UtensilsCrossed} from "lucide-react";
+import {useRef,useState} from "react";
+import {CalendarDays,ChevronDown,Plus,RotateCcw,Save,Trash2,TrendingUp} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {salesMenus,type SalesData,type SalesDay,type SaleLine,type SalesTrendPeriod,type DailyExpense} from "@/lib/sales";
 import {calculateProfitTotals,calculateSaleFinancialTotals,calculateSaleLineFinancials} from "@/lib/sales-financials";
-import {malaysiaDate} from "@/lib/inventory";
+import {malaysiaDate,validDate} from "@/lib/inventory";
 import {MAX_SALES_SERVINGS,parseExpenseAmount,parseServingsInput} from "@/lib/sales-input";
 
 type ExpenseDraft={id:string;category:string;amount:string;note:string};
@@ -28,12 +28,19 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
  const [expensesDirty,setExpensesDirty]=useState(false);
  const [dirty,setDirty]=useState(false);
  const [busy,setBusy]=useState(false);
+ const [loadingDate,setLoadingDate]=useState(false);
+ const [loadingMessage,setLoadingMessage]=useState("");
  const [error,setError]=useState("");
+ const [dateError,setDateError]=useState("");
+ const [quantityTexts,setQuantityTexts]=useState<Record<string,string>>(()=>Object.fromEntries(initialData.day.lines.map(line=>[line.menuId,line.quantity===null?"":String(line.quantity)])));
+ const [quantityErrors,setQuantityErrors]=useState<Record<string,string>>({});
  const [message,setMessage]=useState("");
  const [trendPeriod,setTrendPeriod]=useState<SalesTrendPeriod>(initialData.trendPeriod);
+ const saveInProgress=useRef(false);
 
  const entered=draft.lines.filter(line=>line.quantity!==null).length;
  const total=servingsFor(draft.lines);
+ const hasInvalidQuantity=Object.values(quantityErrors).some(Boolean);
  const isNew=draft.version===0;
  const fallbackPrices=isNew?data.menuPrices:undefined;
  const fallbackCosts=isNew?data.menuCosts:undefined;
@@ -42,10 +49,10 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
  const draftTotals=calculateSaleFinancialTotals(draftLines);
  const expensesRecorded=data.expenseVersion>0&&!expensesDirty;
  const draftFinancial=calculateProfitTotals({date:draft.date,revenueCents:entered===0?null:draftTotals.revenueCents,ingredientCostCents:entered===0?null:draftTotals.ingredientCostCents,expensesCents:expenseTotal,expensesRecorded,salesDays:draft.version>0||entered>0?1:0});
- const totalRevenue=draftFinancial.revenueCents;
- const ingredientCosts=draftFinancial.ingredientCostCents;
- const grossProfit=draftFinancial.grossProfitCents;
- const netProfit=draftFinancial.netProfitCents;
+ const totalRevenue=hasInvalidQuantity?null:draftFinancial.revenueCents;
+ const ingredientCosts=hasInvalidQuantity?null:draftFinancial.ingredientCostCents;
+ const grossProfit=hasInvalidQuantity?null:draftFinancial.grossProfitCents;
+ const netProfit=hasInvalidQuantity?null:draftFinancial.netProfitCents;
  const previousRevenue=data.previousDay.version?calculateSaleFinancialTotals(data.previousDay.lines).revenueCents:null;
  const revenueChange=totalRevenue!==null&&previousRevenue!==null?totalRevenue-previousRevenue:null;
  const servingsChange=data.previousDay.version?total-servingsFor(data.previousDay.lines):null;
@@ -57,26 +64,45 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
   return result as SalesData;
  }
  async function choose(date:string){
-  if(!date||date===draft.date)return;
+  if(!validDate(date)||date>malaysiaDate()){
+   setDateError("Choose a valid business date today or earlier.");
+   return;
+  }
+  if(date===draft.date){setDateError("");return;}
   if((dirty||expensesDirty)&&!window.confirm("Discard unsaved sales or expense changes?"))return;
-  setBusy(true);setError("");setMessage("");
+  setBusy(true);setLoadingDate(true);setLoadingMessage(`Loading sales for ${shortDate(date)}…`);setError("");setDateError("");setMessage("");
   try{
    const result=await load(date);
    setData(result);setDraft(structuredClone(result.day));setExpensesDraft(initialExpenses(result.expenses));
+   setQuantityTexts(Object.fromEntries(result.day.lines.map(line=>[line.menuId,line.quantity===null?"":String(line.quantity)])));
+   setQuantityErrors({});
    setDirty(false);setExpensesDirty(false);
   }catch(e){setError(e instanceof Error?e.message:"Could not load this date.");}
-  finally{setBusy(false);}
+  finally{setBusy(false);setLoadingDate(false);setLoadingMessage("");}
  }
  async function saveSales(e:React.FormEvent){
-  e.preventDefault();setBusy(true);setError("");setMessage("");
+  e.preventDefault();
+  if(saveInProgress.current)return;
+  if(Object.values(quantityErrors).some(Boolean)){
+   setError("Correct the highlighted servings before saving.");
+   return;
+  }
+  if(entered===0){
+   setError("Enter a quantity for at least one menu item. Use 0 to confirm no sales.");
+   return;
+  }
+  if(!dirty)return;
+  saveInProgress.current=true;setBusy(true);setError("");setMessage("");
   try{
    const response=await fetch("/api/sales",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:draft.date,version:draft.version,lines:draft.lines,trendPeriod})});
    const result=await response.json();
    if(!response.ok)throw new Error(result.error||"Could not save sales.");
-   setData(result);setDraft(structuredClone(result.day));setDirty(false);
-   setMessage("Daily sales saved. Your saved prices and costs are kept with this date.");
+   setData(result);setDraft(structuredClone(result.day));
+   setQuantityTexts(Object.fromEntries(result.day.lines.map((line:SaleLine)=>[line.menuId,line.quantity===null?"":String(line.quantity)])));
+   setQuantityErrors({});setDirty(false);
+   setMessage(draft.version===0?"Daily sales saved. Your saved prices and costs are kept with this date.":"Sales changes saved. Your original prices and costs are kept with this date.");
   }catch(e){setError(e instanceof Error?e.message:"Could not save sales. Please try again.");}
-  finally{setBusy(false);}
+  finally{saveInProgress.current=false;setBusy(false);}
  }
  async function fillMissingFinancials(){
   setBusy(true);setError("");setMessage("");
@@ -107,14 +133,24 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
  }
  async function changeTrend(period:SalesTrendPeriod){
   if(period===trendPeriod)return;
-  setBusy(true);setError("");
+  setBusy(true);setLoadingDate(true);setLoadingMessage(`Loading ${period} trend…`);setError("");
   try{const result=await load(draft.date,period);setData(result);setTrendPeriod(period);}
   catch(e){setError(e instanceof Error?e.message:"Could not load this trend.");}
-  finally{setBusy(false);}
+  finally{setBusy(false);setLoadingDate(false);setLoadingMessage("");}
  }
  function updateLine(menuId:string,patch:Partial<SaleLine>){
   setDraft(current=>({...current,lines:current.lines.map(line=>line.menuId===menuId?{...line,...patch}:line)}));
+  if("quantity" in patch){
+   setQuantityTexts(current=>({...current,[menuId]:patch.quantity===null?"":String(patch.quantity)}));
+   setQuantityErrors(current=>({...current,[menuId]:""}));
+  }
   setDirty(true);setMessage("");setError("");
+ }
+ function cancelSalesChanges(){
+  if((dirty||Object.values(quantityErrors).some(Boolean))&&!window.confirm("Discard your unsaved sales changes?"))return;
+  setDraft(structuredClone(data.day));
+  setQuantityTexts(Object.fromEntries(data.day.lines.map(line=>[line.menuId,line.quantity===null?"":String(line.quantity)])));
+  setQuantityErrors({});setDirty(false);setError("");setMessage("");
  }
  function editExpense(id:string,patch:Partial<ExpenseDraft>){
   setExpensesDraft(previous=>previous.map(expense=>expense.id===id?{...expense,...patch}:expense));
@@ -127,20 +163,23 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
     <p className="mb-2 text-xs font-semibold tracking-[0.14em] text-blue-600">SALES REGISTER</p>
     <h1 className="text-3xl font-semibold tracking-tight">Daily sales</h1>
     <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Record servings sold for each menu item. Your sales, revenue, and saved history update together.</p>
+    <p className="mt-2 text-sm font-medium text-foreground">Business date · {shortDate(draft.date)} (Malaysia)</p>
    </div>
-   <label htmlFor="sales-date" className="block w-full text-sm font-medium sm:w-56">
-    Sales date
+   <div className="w-full sm:w-56">
+    <label htmlFor="sales-date" className="block text-sm font-medium">Select business date</label>
     <span className="relative mt-2 block">
      <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground"/>
-     <Input id="sales-date" className="pl-10" type="date" max={malaysiaDate()} value={draft.date} disabled={busy} onChange={event=>void choose(event.target.value)}/>
+     <Input id="sales-date" className="pl-10" type="date" max={malaysiaDate()} value={draft.date} disabled={busy} aria-invalid={Boolean(dateError)} aria-describedby={dateError?"sales-date-error":undefined} onChange={event=>void choose(event.target.value)}/>
     </span>
-   </label>
-  </header>
+    {dateError&&<p id="sales-date-error" className="mt-1 text-xs text-destructive" role="alert">{dateError}</p>}
+   </div>
+   </header>
+   {loadingDate&&<p role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">{loadingMessage}</p>}
 
-  <section aria-label="Today at a glance" className="mt-6 grid gap-3 sm:grid-cols-3">
+  <section aria-label="Selected date at a glance" className="mt-6 grid gap-3 sm:grid-cols-3">
    <article className="rounded-2xl border border-border bg-white p-4 sm:p-5">
     <p className="text-sm text-muted-foreground">Servings sold</p>
-    <p className="mt-2 text-2xl font-semibold tabular-nums">{total}</p>
+    <p className="mt-2 text-2xl font-semibold tabular-nums">{hasInvalidQuantity?"—":total}</p>
     <p className="mt-1 text-xs text-muted-foreground">{entered} of {salesMenus.length} menu items entered</p>
    </article>
    <article className="rounded-2xl border border-border bg-white p-4 sm:p-5">
@@ -164,64 +203,63 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
   <form onSubmit={saveSales} className="mt-6 overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
    <div className="flex flex-col gap-2 border-b border-border px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
     <div>
-     <h2 className="text-lg font-semibold">Enter today’s sales</h2>
-     <p className="mt-1 text-sm text-muted-foreground">How many servings of each item did you sell?</p>
+     <h2 className="text-lg font-semibold">{draft.date===malaysiaDate()&&!draft.version?"Enter today’s sales":draft.version?"Edit sales":"Enter sales"}</h2>
+     <p className="mt-1 text-sm text-muted-foreground">How many servings of each item did you sell on {shortDate(draft.date)}?</p>
     </div>
     <span className={`w-fit rounded-full px-3 py-1 text-xs font-medium ${dirty?"bg-amber-50 text-amber-800":draft.version?"bg-emerald-50 text-emerald-800":"bg-slate-100 text-slate-600"}`}>
-     {busy?"Saving…":dirty?"Unsaved changes":draft.version?"Saved":"Not entered"}
+     {loadingDate?"Loading…":busy?"Saving…":dirty?"Unsaved changes":draft.version?"Saved":"Not entered"}
     </span>
    </div>
 
-   <div className="divide-y divide-border">
+   <div className="overflow-x-auto">
+    <table className="w-full min-w-[680px] text-left text-sm">
+     <thead className="bg-slate-50 text-xs text-muted-foreground">
+      <tr><th scope="col" className="px-4 py-3 font-medium sm:px-6">Menu item</th><th scope="col" className="px-4 py-3 font-medium">Servings sold</th><th scope="col" className="px-4 py-3 text-right font-medium">Selling price</th><th scope="col" className="px-4 py-3 text-right font-medium">Revenue</th></tr>
+     </thead>
+     <tbody className="divide-y divide-border">
     {salesMenus.map(menu=>{
      const line=draft.lines.find(item=>item.menuId===menu.id)!;
      const price=line.unitPriceCents??fallbackPrices?.[menu.id]??null;
      const rowRevenue=calculateSaleLineFinancials(draftLines.find(item=>item.menuId===menu.id)!).revenueCents;
-     const Icon=menu.category==="Food"?UtensilsCrossed:Coffee;
-     return <div key={menu.id} className="grid gap-4 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_144px_130px] sm:items-center sm:px-6">
-      <div className="flex min-w-0 items-center gap-3">
-       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon size={18} aria-hidden="true"/></span>
-       <div className="min-w-0">
-        <label htmlFor={`sale-${menu.id}`} className="block text-sm font-semibold">{menu.name}</label>
-        <p className="mt-1 text-xs text-muted-foreground">{price===null?"Selling price not set":`${money.format(price/100)} per serving`}</p>
+     const fieldError=quantityErrors[menu.id];
+     return <tr key={menu.id}>
+      <th scope="row" className="px-4 py-4 font-semibold sm:px-6">{menu.name}<span className="mt-1 block text-xs font-normal text-muted-foreground">{menu.category}</span><label className="mt-2 flex items-center gap-2 text-xs font-normal text-muted-foreground"><input className="size-4 accent-blue-600" type="checkbox" checked={line.soldOut} disabled={busy||line.quantity===null||Boolean(fieldError)} onChange={event=>updateLine(menu.id,{soldOut:event.target.checked})}/>Sold out</label></th>
+      <td className="px-4 py-4">
+       <div className="flex h-11 w-40 items-stretch overflow-hidden rounded-lg border border-input focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
+        <button type="button" aria-label={`Decrease ${menu.name} servings`} disabled={busy||line.quantity===null||line.quantity===0} className="grid w-10 shrink-0 place-items-center border-r border-border text-lg font-medium text-slate-600 hover:bg-secondary disabled:text-slate-300" onClick={()=>updateLine(menu.id,{quantity:Math.max(0,(line.quantity??1)-1)})}>−</button>
+        <Input id={`sale-${menu.id}`} className="h-full min-w-0 rounded-none border-0 px-1 text-center text-base font-semibold tabular-nums shadow-none focus-visible:border-0 focus-visible:ring-0" type="text" pattern="[0-9]*" maxLength={7} inputMode="numeric" autoComplete="off" placeholder="0" value={quantityTexts[menu.id]??""} aria-label={`${menu.name} servings sold`} aria-invalid={Boolean(fieldError)} aria-describedby={fieldError?`sale-${menu.id}-error`:undefined}
+         onChange={event=>{
+          const text=event.target.value;
+          setQuantityTexts(current=>({...current,[menu.id]:text}));
+          setDirty(true);setMessage("");setError("");
+          const quantity=parseServingsInput(text);
+          if(quantity===undefined){
+           setQuantityErrors(current=>({...current,[menu.id]:"Enter a whole number from 0 to 1,000,000."}));
+           return;
+          }
+          setQuantityErrors(current=>({...current,[menu.id]:""}));
+          setDraft(current=>({...current,lines:current.lines.map(item=>item.menuId===menu.id?{...item,quantity,soldOut:quantity===null?false:item.soldOut}:item)}));
+         }}/>
+        <button type="button" aria-label={`Increase ${menu.name} servings`} disabled={busy||line.quantity===MAX_SALES_SERVINGS} className="grid w-10 shrink-0 place-items-center border-l border-border text-lg font-medium text-slate-600 hover:bg-secondary disabled:text-slate-300" onClick={()=>updateLine(menu.id,{quantity:Math.min(MAX_SALES_SERVINGS,(line.quantity??0)+1)})}>+</button>
        </div>
-      </div>
-      <label htmlFor={`sale-${menu.id}`} className="block text-xs font-medium text-muted-foreground">
-       Servings sold
-       <div className="mt-1.5 flex h-12 items-stretch overflow-hidden rounded-lg border border-input bg-white focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
-        <button type="button" aria-label={`Decrease ${menu.name} servings`} disabled={busy||line.quantity===null||line.quantity===0} className="grid w-12 shrink-0 place-items-center border-r border-border text-lg font-medium text-slate-600 transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:text-slate-300" onClick={()=>updateLine(menu.id,{quantity:Math.max(0,(line.quantity??1)-1)})}>−</button>
-        <Input id={`sale-${menu.id}`} className="h-full min-w-0 rounded-none border-0 px-1 text-center text-lg font-semibold tabular-nums shadow-none focus-visible:border-0 focus-visible:ring-0" type="text" pattern="[0-9]*" maxLength={7} inputMode="numeric" autoComplete="off" placeholder="0" value={line.quantity??""} aria-label={`${menu.name} servings sold`}
-        onChange={event=>{
-         const text=event.target.value;
-         if(text===""){updateLine(menu.id,{quantity:null,soldOut:false});return;}
-         const value=parseServingsInput(text);
-         if(value===undefined){setError("Enter a whole-number serving count from 0 to 1,000,000.");return;}
-         updateLine(menu.id,{quantity:value});
-        }}/>
-        <button type="button" aria-label={`Increase ${menu.name} servings`} disabled={busy||line.quantity===MAX_SALES_SERVINGS} className="grid w-12 shrink-0 place-items-center border-l border-border text-lg font-medium text-slate-600 transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:text-slate-300" onClick={()=>updateLine(menu.id,{quantity:Math.min(MAX_SALES_SERVINGS,(line.quantity??0)+1)})}>+</button>
-       </div>
-      </label>
-      <div className="flex items-center justify-between gap-3 sm:block sm:text-right">
-       <label className="flex items-center gap-2 text-xs text-muted-foreground sm:justify-end">
-        <input className="size-4 accent-blue-600" type="checkbox" checked={line.soldOut} disabled={busy||line.quantity===null} onChange={event=>updateLine(menu.id,{soldOut:event.target.checked})}/>
-        Sold out
-        <span className="sr-only">: {menu.name}</span>
-       </label>
-       <p className="text-sm font-semibold tabular-nums sm:mt-2">{rowRevenue===null?"—":money.format(rowRevenue/100)}</p>
-       <span className="sr-only">estimated revenue</span>
-      </div>
-     </div>;
+       {fieldError&&<p id={`sale-${menu.id}-error`} className="mt-1 max-w-48 text-xs text-destructive" role="alert">{fieldError}</p>}
+      </td>
+      <td className="px-4 py-4 text-right tabular-nums">{price===null?<span className="text-muted-foreground">Not set</span>:money.format(price/100)}<span className="block text-xs text-muted-foreground">per serving</span></td>
+      <td className="px-4 py-4 text-right font-semibold tabular-nums">{fieldError?"Not available":line.quantity===null?"—":rowRevenue===null?"Not available":money.format(rowRevenue/100)}</td>
+     </tr>;
     })}
+     </tbody>
+    </table>
    </div>
 
    <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-border bg-white/95 px-4 py-4 shadow-[0_-8px_20px_-18px_rgba(15,23,42,0.4)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-6">
-    <p className="text-xs leading-5 text-muted-foreground">Blank = not entered. Enter 0 for confirmed no sales. Sold-out is optional.</p>
+    <p className="text-xs leading-5 text-muted-foreground">Blank = not entered. Enter 0 for confirmed no sales. Sold-out is optional. Total servings: <span className="font-semibold tabular-nums">{hasInvalidQuantity?"Not available":total}</span> · Total revenue: <span className="font-semibold tabular-nums">{summaryValue(totalRevenue)}</span></p>
     <div className="flex flex-col-reverse gap-2 sm:flex-row">
-     <Button type="button" variant="ghost" size="sm" disabled={busy||!dirty} onClick={()=>{setDraft(structuredClone(data.day));setDirty(false);setError("");setMessage("");}}>
-      <RotateCcw aria-hidden="true"/>Discard
+     <Button type="button" variant="ghost" size="sm" disabled={busy||!dirty&&!Object.values(quantityErrors).some(Boolean)} onClick={cancelSalesChanges}>
+      <RotateCcw aria-hidden="true"/>Cancel
      </Button>
-     <Button size="sm" disabled={busy||!dirty||entered===0}>
-      <Save aria-hidden="true"/>{busy?"Saving…":"Save sales"}
+     <Button size="sm" disabled={busy||!dirty||entered===0||Object.values(quantityErrors).some(Boolean)}>
+      <Save aria-hidden="true"/>{busy?"Saving…":draft.version?"Save changes":"Save sales"}
      </Button>
     </div>
    </div>
@@ -268,7 +306,7 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
       <label className="text-xs font-medium text-muted-foreground">Note <span className="font-normal">(optional)</span>
        <Input maxLength={120} className="mt-1.5 h-10" value={expense.note} onChange={event=>editExpense(expense.id,{note:event.target.value})}/>
       </label>
-      <button type="button" className="grid size-10 place-items-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label={`Remove expense ${index+1}`} onClick={()=>{setExpensesDraft(rows=>rows.filter(row=>row.id!==expense.id));setExpensesDirty(true);}}>
+      <button type="button" className="grid size-10 place-items-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label={`Remove expense ${index+1}`} onClick={()=>{if(window.confirm("Remove this expense from the unsaved list?")){setExpensesDraft(rows=>rows.filter(row=>row.id!==expense.id));setExpensesDirty(true);}}}>
        <Trash2 className="size-4" aria-hidden="true"/>
       </button>
      </div>)}
@@ -292,7 +330,7 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
      </article>)}
     </div>
     <p className="mt-3 text-xs leading-5 text-muted-foreground">Ingredient cost of sales is the saved recipe cost per serving multiplied by servings sold; it is an estimate, not an inventory movement or purchase total. Gross profit is revenue minus ingredient cost of sales. Estimated net profit subtracts only the saved other expenses, and is unavailable until an expense list is saved. It is not a complete accounting profit; unrecorded expenses are excluded. Missing prices or costs are shown as “Not available”.</p>
-    <p className="mt-2 text-xs text-muted-foreground">Gross profit margin: <span className="font-medium tabular-nums">{formatMargin(draftFinancial.grossProfitMarginPercent)}</span> · Estimated net margin: <span className="font-medium tabular-nums">{formatMargin(draftFinancial.netProfitMarginPercent)}</span></p>
+    <p className="mt-2 text-xs text-muted-foreground">Gross profit margin: <span className="font-medium tabular-nums">{formatMargin(hasInvalidQuantity?null:draftFinancial.grossProfitMarginPercent)}</span> · Estimated net margin: <span className="font-medium tabular-nums">{formatMargin(hasInvalidQuantity?null:draftFinancial.netProfitMarginPercent)}</span></p>
     <div className="mt-4 overflow-x-auto rounded-xl border border-border">
      <table className="w-full min-w-[960px] text-left text-sm">
      <thead className="bg-slate-50 text-xs text-muted-foreground"><tr><th scope="col" className="px-4 py-3 font-medium">Menu item</th><th scope="col" className="px-4 py-3 font-medium">Servings sold</th><th scope="col" className="px-4 py-3 font-medium">Revenue</th><th scope="col" className="px-4 py-3 font-medium">Ingredient cost of sales</th><th scope="col" className="px-4 py-3 font-medium">Profit contribution</th><th scope="col" className="px-4 py-3 font-medium">Contribution margin</th><th scope="col" className="px-4 py-3 font-medium">Recipe details</th></tr></thead>
@@ -300,11 +338,11 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
        {salesMenus.map(menu=>{
         const line=draft.lines.find(item=>item.menuId===menu.id)!;
         const quantity=line.quantity;
-        const itemFinancial=calculateSaleLineFinancials(draftLines.find(item=>item.menuId===menu.id)!);
+        const itemFinancial=quantityErrors[menu.id]?null:calculateSaleLineFinancials(draftLines.find(item=>item.menuId===menu.id)!);
         const snapshot=line.costSnapshot??(isNew?data.menuCosts[menu.id]:null);
         return <tr key={menu.id}>
          <th scope="row" className="px-4 py-3 font-medium">{menu.name}</th><td className="px-4 py-3">{quantity??"—"}</td>
-         <td className="px-4 py-3">{formatMoney(itemFinancial.revenueCents)}</td><td className="px-4 py-3">{formatMoney(itemFinancial.ingredientCostCents)}</td><td className={`px-4 py-3 font-medium ${itemFinancial.contributionCents!==null&&itemFinancial.contributionCents<0?"text-red-700":""}`}>{formatMoney(itemFinancial.contributionCents)}</td><td className="px-4 py-3">{formatMargin(itemFinancial.contributionMarginPercent)}</td>
+         <td className="px-4 py-3">{formatMoney(itemFinancial?.revenueCents??null)}</td><td className="px-4 py-3">{formatMoney(itemFinancial?.ingredientCostCents??null)}</td><td className={`px-4 py-3 font-medium ${itemFinancial&&itemFinancial.contributionCents!==null&&itemFinancial.contributionCents<0?"text-red-700":""}`}>{formatMoney(itemFinancial?.contributionCents??null)}</td><td className="px-4 py-3">{formatMargin(itemFinancial?.contributionMarginPercent??null)}</td>
          <td className="px-4 py-3">{snapshot?<details><summary className="cursor-pointer text-primary">View</summary><ul className="mt-2 space-y-1 text-xs text-muted-foreground">{snapshot.ingredients.map(item=><li key={item.ingredientId}>{item.name}: {item.quantity} {item.unit} / batch · {item.batchCostCents===null?"cost not set":money.format(item.batchCostCents/100)}</li>)}</ul><p className="mt-2 text-xs text-muted-foreground">Per-serving cost: {formatMoney(snapshot.perServingCostCents)}</p></details>:"—"}</td>
         </tr>;
        })}

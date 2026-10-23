@@ -33,7 +33,7 @@ test("sales preserve blanks, persist corrections once per date and never change 
  try{const stock=inventory.seed("owner");const date=malaysiaDate();const initial=store.day(date);assert.equal(initial.version,0);assert.ok(initial.lines.every(l=>l.quantity===null));
  const input={...initial,lines:initial.lines.map((l,i)=>({...l,quantity:i===0?40:i===1?0:null,soldOut:i===0}))};
  const saved=store.save(input,"owner");assert.equal(saved.day.version,1);assert.equal(saved.recent[0].entered,2);assert.equal(saved.recent[0].total,40);assert.equal(saved.day.lines[2].quantity,null);
- assert.throws(()=>store.save(input,"owner"));assert.throws(()=>store.save(saved.day,"visitor"));
+ assert.throws(()=>store.save(input,"owner"));assert.equal(store.history(date).length,1);assert.throws(()=>store.save(saved.day,"visitor"));
  const corrected=store.save({...saved.day,lines:saved.day.lines.map((l,i)=>i===0?{...l,quantity:45}:l)},"owner");assert.equal(corrected.recent.length,1);assert.equal(corrected.recent[0].total,45);assert.equal(store.history(date).length,2);
  assert.deepEqual(inventory.list(),stock);
  store.close();store=openSalesStore(path);assert.deepEqual(store.day(date),corrected.day);

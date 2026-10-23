@@ -7,9 +7,23 @@ const source=readFileSync(join(import.meta.dirname,"../src/components/sales-edit
 
 test("daily sales screen leads with the core entry and saves no date-specific demo data",()=>{
  assert.match(source,/<h1 className="text-3xl font-semibold tracking-tight">Daily sales<\/h1>/);
- assert.match(source,/<h2 className="text-lg font-semibold">Enter today’s sales<\/h2>/);
+ assert.match(source,/draft\.date===malaysiaDate\(\)&&!draft\.version\?"Enter today’s sales"/);
  assert.match(source,/Save sales/);
  assert.doesNotMatch(source,/markDemo|syntheticDemo|Agreed demo/);
+});
+
+test("sales entry exposes business date, a scan-friendly table, validation and explicit actions",()=>{
+ assert.match(source,/Business date · \{shortDate\(draft\.date\)\} \(Malaysia\)/);
+ assert.match(source,/<table className="w-full min-w-\[680px\] text-left text-sm">/);
+ assert.match(source,/Selling price/);
+ assert.match(source,/aria-invalid=\{Boolean\(fieldError\)\}/);
+ assert.match(source,/Enter a whole number from 0 to 1,000,000/);
+ assert.match(source,/loadingDate\?"Loading…":busy\?"Saving…"/);
+ assert.match(source,/role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">\{loadingMessage\}/);
+ assert.match(source,/draft\.version\?"Save changes":"Save sales"/);
+ assert.match(source,/<RotateCcw aria-hidden="true"\/>Cancel/);
+ assert.match(source,/saveInProgress\.current/);
+ assert.match(source,/window\.confirm\("Discard your unsaved sales changes\?"\)/);
 });
 
 test("financial breakdowns and historical detail are progressively disclosed",()=>{
