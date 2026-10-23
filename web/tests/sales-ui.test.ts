@@ -4,6 +4,7 @@ import {readFileSync} from "node:fs";
 import {join} from "node:path";
 
 const source=readFileSync(join(import.meta.dirname,"../src/components/sales-editor.tsx"),"utf8");
+const recipesSource=readFileSync(join(import.meta.dirname,"../src/components/recipe-editor.tsx"),"utf8");
 
 test("daily sales screen leads with the core entry and saves no date-specific demo data",()=>{
  assert.match(source,/<h1 className="text-3xl font-semibold tracking-tight">Daily sales<\/h1>/);
@@ -26,10 +27,22 @@ test("sales entry exposes business date, a scan-friendly table, validation and e
  assert.match(source,/window\.confirm\("Discard your unsaved sales changes\?"\)/);
 });
 
+test("daily sales content follows the requested hierarchy without repeated summary cards",()=>{
+ const sections=["<h1 className=","<form onSubmit={saveSales}","aria-label=\"Sales summary\"","id=\"profit-estimate-heading\"","id=\"menu-financials-heading\"","Historical sales records"].map(marker=>source.indexOf(marker));
+ assert.ok(sections.every(index=>index>=0));
+ assert.deepEqual([...sections],[...sections].sort((a,b)=>a-b));
+ assert.match(source,/Ingredient cost of sales/);
+ assert.match(source,/Gross profit/);
+ assert.doesNotMatch(source,/Compared with previous day/);
+ assert.match(source,/Sales trends/);
+});
+
 test("financial breakdowns and historical detail are progressively disclosed",()=>{
- for(const section of ["Other daily expenses","Profit estimate","Sales trends","Previous sales records"]){
+ for(const section of ["Other daily expenses","Sales trends","Historical sales records"]){
   assert.match(source,new RegExp(`<span className="block text-sm font-semibold">${section.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}<\\/span>`));
  }
+ assert.match(source,/id="profit-estimate-heading" className="text-lg font-semibold">Profit estimate/);
+ assert.match(source,/id="menu-financials-heading" className="text-lg font-semibold">Menu-level financial details/);
  assert.match(source,/<details className="group mt-4/);
 });
 
@@ -42,8 +55,12 @@ test("financial details distinguish incomplete expenses and negative contributio
  assert.match(source,/data\.expenseVersion>0&&!expensesDirty/);
  assert.match(source,/Save an empty list to confirm no other expenses were recorded/);
  assert.match(source,/itemFinancial\.contributionCents<0\?"text-red-700":""/);
- assert.match(source,/Contribution margin/);
- assert.match(source,/unrecorded expenses are excluded/);
+ assert.match(source,/Negative contribution/);
+ assert.match(source,/role="status">Cost incomplete/);
+ assert.match(source,/Review \{menu\.name\} recipe/);
+ assert.match(source,/recipes\?menu=\$\{encodeURIComponent\(menu\.id\)\}/);
+ assert.match(recipesSource,/new URLSearchParams\(window\.location\.search\)\.get\("menu"\)/);
+ assert.match(source,/Unrecorded expenses are not included/);
 });
 
 test("serving and expense fields use purpose-built text keyboards and quick steppers",()=>{

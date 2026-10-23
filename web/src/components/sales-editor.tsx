@@ -53,9 +53,6 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
  const ingredientCosts=hasInvalidQuantity?null:draftFinancial.ingredientCostCents;
  const grossProfit=hasInvalidQuantity?null:draftFinancial.grossProfitCents;
  const netProfit=hasInvalidQuantity?null:draftFinancial.netProfitCents;
- const previousRevenue=data.previousDay.version?calculateSaleFinancialTotals(data.previousDay.lines).revenueCents:null;
- const revenueChange=totalRevenue!==null&&previousRevenue!==null?totalRevenue-previousRevenue:null;
- const servingsChange=data.previousDay.version?total-servingsFor(data.previousDay.lines):null;
 
  async function load(date:string,period=trendPeriod){
   const response=await fetch(`/api/sales?date=${encodeURIComponent(date)}&trend=${period}`,{cache:"no-store"});
@@ -165,36 +162,20 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
     <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Record servings sold for each menu item. Your sales, revenue, and saved history update together.</p>
     <p className="mt-2 text-sm font-medium text-foreground">Business date · {shortDate(draft.date)} (Malaysia)</p>
    </div>
-   <div className="w-full sm:w-56">
-    <label htmlFor="sales-date" className="block text-sm font-medium">Select business date</label>
-    <span className="relative mt-2 block">
-     <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground"/>
-     <Input id="sales-date" className="pl-10" type="date" max={malaysiaDate()} value={draft.date} disabled={busy} aria-invalid={Boolean(dateError)} aria-describedby={dateError?"sales-date-error":undefined} onChange={event=>void choose(event.target.value)}/>
+   <div className="flex w-full flex-col gap-3 sm:w-auto sm:items-end">
+    <label htmlFor="sales-date" className="block w-full text-sm font-medium sm:w-56">Select business date
+     <span className="relative mt-2 block">
+      <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground"/>
+      <Input id="sales-date" className="pl-10" type="date" max={malaysiaDate()} value={draft.date} disabled={busy} aria-invalid={Boolean(dateError)} aria-describedby={dateError?"sales-date-error":undefined} onChange={event=>void choose(event.target.value)}/>
+     </span>
+    </label>
+    {dateError&&<p id="sales-date-error" className="w-full text-xs text-destructive sm:w-56" role="alert">{dateError}</p>}
+    <span className={`w-fit rounded-full px-3 py-1.5 text-xs font-medium ${dirty?"bg-amber-50 text-amber-800":draft.version?"bg-emerald-50 text-emerald-800":"bg-slate-100 text-slate-600"}`} role="status">
+     {loadingDate?"Loading…":busy?"Saving…":dirty?"Unsaved changes":draft.version?"Saved":"Not entered"}
     </span>
-    {dateError&&<p id="sales-date-error" className="mt-1 text-xs text-destructive" role="alert">{dateError}</p>}
    </div>
    </header>
    {loadingDate&&<p role="status" aria-live="polite" className="mt-3 text-sm text-muted-foreground">{loadingMessage}</p>}
-
-  <section aria-label="Selected date at a glance" className="mt-6 grid gap-3 sm:grid-cols-3">
-   <article className="rounded-2xl border border-border bg-white p-4 sm:p-5">
-    <p className="text-sm text-muted-foreground">Servings sold</p>
-    <p className="mt-2 text-2xl font-semibold tabular-nums">{hasInvalidQuantity?"—":total}</p>
-    <p className="mt-1 text-xs text-muted-foreground">{entered} of {salesMenus.length} menu items entered</p>
-   </article>
-   <article className="rounded-2xl border border-border bg-white p-4 sm:p-5">
-    <p className="text-sm text-muted-foreground">Sales revenue</p>
-    <p className="mt-2 text-2xl font-semibold tabular-nums">{summaryValue(totalRevenue)}</p>
-    <p className="mt-1 text-xs text-muted-foreground">Based on servings and saved menu prices</p>
-   </article>
-   <article className="rounded-2xl border border-border bg-white p-4 sm:p-5">
-    <p className="text-sm text-muted-foreground">Compared with previous day</p>
-    <p className={`mt-2 text-2xl font-semibold tabular-nums ${revenueChange===null?"text-foreground":revenueChange>=0?"text-emerald-700":"text-rose-700"}`}>
-     {revenueChange===null?"—":`${revenueChange>=0?"+":"−"}${money.format(Math.abs(revenueChange)/100)}`}
-    </p>
-    <p className="mt-1 text-xs text-muted-foreground">{data.previousDay.version?`${servingsChange!>=0?"+":""}${servingsChange} servings · ${shortDate(data.previousDay.date)}`:"No previous-day sales recorded"}</p>
-   </article>
-  </section>
 
   {error&&<p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-destructive">{error}</p>}
   {message&&<p role="status" className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">{message}</p>}
@@ -206,9 +187,6 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
      <h2 className="text-lg font-semibold">{draft.date===malaysiaDate()&&!draft.version?"Enter today’s sales":draft.version?"Edit sales":"Enter sales"}</h2>
      <p className="mt-1 text-sm text-muted-foreground">How many servings of each item did you sell on {shortDate(draft.date)}?</p>
     </div>
-    <span className={`w-fit rounded-full px-3 py-1 text-xs font-medium ${dirty?"bg-amber-50 text-amber-800":draft.version?"bg-emerald-50 text-emerald-800":"bg-slate-100 text-slate-600"}`}>
-     {loadingDate?"Loading…":busy?"Saving…":dirty?"Unsaved changes":draft.version?"Saved":"Not entered"}
-    </span>
    </div>
 
    <div className="overflow-x-auto">
@@ -253,7 +231,7 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
    </div>
 
    <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-border bg-white/95 px-4 py-4 shadow-[0_-8px_20px_-18px_rgba(15,23,42,0.4)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-6">
-    <p className="text-xs leading-5 text-muted-foreground">Blank = not entered. Enter 0 for confirmed no sales. Sold-out is optional. Total servings: <span className="font-semibold tabular-nums">{hasInvalidQuantity?"Not available":total}</span> · Total revenue: <span className="font-semibold tabular-nums">{summaryValue(totalRevenue)}</span></p>
+    <p className="text-xs leading-5 text-muted-foreground">Blank = not entered. Enter 0 for confirmed no sales. Sold-out is optional.</p>
     <div className="flex flex-col-reverse gap-2 sm:flex-row">
      <Button type="button" variant="ghost" size="sm" disabled={busy||!dirty&&!Object.values(quantityErrors).some(Boolean)} onClick={cancelSalesChanges}>
       <RotateCcw aria-hidden="true"/>Cancel
@@ -265,6 +243,28 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
    </div>
    {draft.updatedAt&&<p className="border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-6">Last saved {new Date(draft.updatedAt).toLocaleString("en-MY",{timeZone:"Asia/Kuala_Lumpur"})}{draft.updatedBy?` by ${draft.updatedBy}`:""}</p>}
   </form>
+
+  <section aria-label="Sales summary" className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+   <article className="rounded-2xl border border-border bg-white p-4 sm:p-5">
+    <p className="text-sm text-muted-foreground">Revenue</p>
+    <p className="mt-2 text-2xl font-semibold tabular-nums">{summaryValue(totalRevenue)}</p>
+   </article>
+   <article className="rounded-2xl border border-border bg-white p-4 sm:p-5">
+    <p className="text-sm text-muted-foreground">Servings sold</p>
+    <p className="mt-2 text-2xl font-semibold tabular-nums">{hasInvalidQuantity?"Not available":total}</p>
+    <p className="mt-1 text-xs text-muted-foreground">{entered} of {salesMenus.length} items entered</p>
+   </article>
+   <article className="rounded-2xl border border-border bg-white p-4 sm:p-5">
+    <p className="text-sm text-muted-foreground">Ingredient cost of sales</p>
+    <p className="mt-2 text-2xl font-semibold tabular-nums">{summaryValue(ingredientCosts)}</p>
+    <p className="mt-1 text-xs text-muted-foreground">Estimated recipe cost for servings sold</p>
+   </article>
+   <article className="rounded-2xl border border-border bg-white p-4 sm:p-5">
+    <p className="text-sm text-muted-foreground">Gross profit</p>
+    <p className="mt-2 text-2xl font-semibold tabular-nums">{summaryValue(grossProfit)}</p>
+    <p className="mt-1 text-xs text-muted-foreground">Revenue minus ingredient cost of sales</p>
+   </article>
+  </section>
 
   {!isNew&&draft.lines.some(line=>line.quantity!==null&&(line.unitPriceCents===null||line.ingredientCostPerServingCents===null))&&
    <details className="group mt-4 rounded-2xl border border-amber-200 bg-amber-50">
@@ -279,7 +279,21 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
     </div>
    </details>}
 
-  <details className="group mt-4 overflow-hidden rounded-2xl border border-border bg-white">
+  <section aria-labelledby="profit-estimate-heading" className="mt-5 rounded-2xl border border-border bg-white p-4 sm:p-5">
+   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div>
+     <h2 id="profit-estimate-heading" className="text-lg font-semibold">Profit estimate</h2>
+     <p className="mt-1 max-w-2xl text-sm text-muted-foreground">Estimated net profit is gross profit minus the other expenses recorded for this date. Save an expense list, or an empty list, to calculate it. Unrecorded expenses are not included.</p>
+    </div>
+    <div className="shrink-0 rounded-xl bg-background px-4 py-3 sm:text-right">
+     <p className="text-xs text-muted-foreground">Estimated net profit</p>
+     <p className="mt-1 text-xl font-semibold tabular-nums">{summaryValue(netProfit)}</p>
+    </div>
+   </div>
+   <p className="mt-3 text-xs text-muted-foreground">Gross profit margin: {formatMargin(hasInvalidQuantity?null:draftFinancial.grossProfitMarginPercent)} · Estimated net margin: {formatMargin(hasInvalidQuantity?null:draftFinancial.netProfitMarginPercent)}</p>
+  </section>
+
+  <details className="group overflow-hidden rounded-xl border border-border bg-white">
    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
     <span><span className="block text-sm font-semibold">Other daily expenses</span><span className="mt-1 block text-xs text-muted-foreground">Rent, utilities, wages, and similar costs</span></span>
     <span className="flex items-center gap-3"><span className="text-sm font-semibold tabular-nums">{money.format(expenseTotal/100)}</span><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180"/></span>
@@ -318,22 +332,15 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
    </form>
   </details>
 
-  <details className="group mt-4 overflow-hidden rounded-2xl border border-border bg-white">
-   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
-    <span><span className="block text-sm font-semibold">Profit estimate</span><span className="mt-1 block text-xs text-muted-foreground">Revenue minus estimated ingredient cost of sales and recorded expenses</span></span>
-    <span className="flex items-center gap-3"><span className="text-sm font-semibold tabular-nums">{summaryValue(netProfit)}</span><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180"/></span>
-   </summary>
-   <div className="border-t border-border p-4 sm:p-5">
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-     {[["Revenue",totalRevenue],["Ingredient cost of sales",ingredientCosts],["Gross profit",grossProfit],["Estimated net profit",netProfit]].map(([label,value])=><article key={label as string} className="rounded-xl bg-background p-3">
-      <p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-base font-semibold tabular-nums">{summaryValue(value as number|null)}</p>
-     </article>)}
-    </div>
-    <p className="mt-3 text-xs leading-5 text-muted-foreground">Ingredient cost of sales is the saved recipe cost per serving multiplied by servings sold; it is an estimate, not an inventory movement or purchase total. Gross profit is revenue minus ingredient cost of sales. Estimated net profit subtracts only the saved other expenses, and is unavailable until an expense list is saved. It is not a complete accounting profit; unrecorded expenses are excluded. Missing prices or costs are shown as “Not available”.</p>
-    <p className="mt-2 text-xs text-muted-foreground">Gross profit margin: <span className="font-medium tabular-nums">{formatMargin(hasInvalidQuantity?null:draftFinancial.grossProfitMarginPercent)}</span> · Estimated net margin: <span className="font-medium tabular-nums">{formatMargin(hasInvalidQuantity?null:draftFinancial.netProfitMarginPercent)}</span></p>
+  <section aria-labelledby="menu-financials-heading" className="mt-5 overflow-hidden rounded-2xl border border-border bg-white">
+   <div className="border-b border-border p-4 sm:p-5">
+    <h2 id="menu-financials-heading" className="text-lg font-semibold">Menu-level financial details</h2>
+    <p className="mt-1 text-sm text-muted-foreground">Per-item revenue and estimated ingredient cost for servings sold. Contribution is revenue minus ingredient cost; a negative value means the estimated cost exceeded revenue.</p>
+   </div>
+   <div className="p-4 sm:p-5">
     <div className="mt-4 overflow-x-auto rounded-xl border border-border">
      <table className="w-full min-w-[960px] text-left text-sm">
-     <thead className="bg-slate-50 text-xs text-muted-foreground"><tr><th scope="col" className="px-4 py-3 font-medium">Menu item</th><th scope="col" className="px-4 py-3 font-medium">Servings sold</th><th scope="col" className="px-4 py-3 font-medium">Revenue</th><th scope="col" className="px-4 py-3 font-medium">Ingredient cost of sales</th><th scope="col" className="px-4 py-3 font-medium">Profit contribution</th><th scope="col" className="px-4 py-3 font-medium">Contribution margin</th><th scope="col" className="px-4 py-3 font-medium">Recipe details</th></tr></thead>
+     <thead className="bg-slate-50 text-xs text-muted-foreground"><tr><th scope="col" className="px-4 py-3 font-medium">Menu item</th><th scope="col" className="px-4 py-3 font-medium">Servings sold</th><th scope="col" className="px-4 py-3 font-medium">Revenue</th><th scope="col" className="px-4 py-3 font-medium">Ingredient cost</th><th scope="col" className="px-4 py-3 font-medium">Contribution</th><th scope="col" className="px-4 py-3 font-medium">Cost details</th></tr></thead>
       <tbody className="divide-y divide-border">
        {salesMenus.map(menu=>{
         const line=draft.lines.find(item=>item.menuId===menu.id)!;
@@ -342,19 +349,25 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
         const snapshot=line.costSnapshot??(isNew?data.menuCosts[menu.id]:null);
         return <tr key={menu.id}>
          <th scope="row" className="px-4 py-3 font-medium">{menu.name}</th><td className="px-4 py-3">{quantity??"—"}</td>
-         <td className="px-4 py-3">{formatMoney(itemFinancial?.revenueCents??null)}</td><td className="px-4 py-3">{formatMoney(itemFinancial?.ingredientCostCents??null)}</td><td className={`px-4 py-3 font-medium ${itemFinancial&&itemFinancial.contributionCents!==null&&itemFinancial.contributionCents<0?"text-red-700":""}`}>{formatMoney(itemFinancial?.contributionCents??null)}</td><td className="px-4 py-3">{formatMargin(itemFinancial?.contributionMarginPercent??null)}</td>
-         <td className="px-4 py-3">{snapshot?<details><summary className="cursor-pointer text-primary">View</summary><ul className="mt-2 space-y-1 text-xs text-muted-foreground">{snapshot.ingredients.map(item=><li key={item.ingredientId}>{item.name}: {item.quantity} {item.unit} / batch · {item.batchCostCents===null?"cost not set":money.format(item.batchCostCents/100)}</li>)}</ul><p className="mt-2 text-xs text-muted-foreground">Per-serving cost: {formatMoney(snapshot.perServingCostCents)}</p></details>:"—"}</td>
+         <td className="px-4 py-3">{formatMoney(itemFinancial?.revenueCents??null)}</td><td className="px-4 py-3">{quantity===null?"—":itemFinancial?.ingredientCostCents===null?<span className="font-medium text-amber-800" role="status">Cost incomplete</span>:formatMoney(itemFinancial?.ingredientCostCents??null)}</td><td className={`px-4 py-3 font-medium ${itemFinancial&&itemFinancial.contributionCents!==null&&itemFinancial.contributionCents<0?"text-red-700":""}`}>{itemFinancial?.contributionCents!==null&&itemFinancial?.contributionCents!==undefined&&itemFinancial.contributionCents<0?<span><span aria-hidden="true">−</span>{money.format(Math.abs(itemFinancial.contributionCents)/100)} <span className="sr-only">Negative contribution</span></span>:formatMoney(itemFinancial?.contributionCents??null)}</td>
+         <td className="px-4 py-3">{snapshot?<details><summary className="cursor-pointer text-primary">View recipe costs</summary><ul className="mt-2 space-y-1 text-xs text-muted-foreground">{snapshot.ingredients.map(item=><li key={item.ingredientId}>{item.name}: {item.quantity} {item.unit} / batch · {item.batchCostCents===null?<span className="font-medium text-amber-800" role="status">Cost incomplete</span>:money.format(item.batchCostCents/100)}</li>)}</ul><p className="mt-2 text-xs text-muted-foreground">Per-serving cost: {formatMoney(snapshot.perServingCostCents)}</p>{snapshot.perServingCostCents===null&&<a href={`/recipes?menu=${encodeURIComponent(menu.id)}`} className="mt-2 inline-block text-xs font-medium text-primary underline underline-offset-4">Review {menu.name} recipe</a>}</details>:quantity===null?"—":<span className="text-amber-800" role="status">Recipe cost unavailable · <a href={`/recipes?menu=${encodeURIComponent(menu.id)}`} className="font-medium underline underline-offset-4">Review {menu.name} recipe</a></span>}</td>
         </tr>;
        })}
       </tbody>
      </table>
     </div>
-    {(totalRevenue===null||ingredientCosts===null)&&entered>0&&<p className="mt-3 text-xs text-amber-800">{totalRevenue===null?"Set menu prices in Recipes. ":""}{ingredientCosts===null?"Set missing ingredient prices in Inventory.":""}</p>}
-    {canManage&&<a href="/recipes" className="mt-3 inline-block text-xs font-medium text-primary underline underline-offset-4">Review menu and recipe prices</a>}
+    {(totalRevenue===null||ingredientCosts===null)&&entered>0&&<p className="mt-3 text-sm text-amber-800" role="status">{totalRevenue===null?"Revenue is unavailable because a selling price is missing. ":""}{ingredientCosts===null?"Ingredient cost of sales is unavailable because a recipe ingredient price or quantity is missing.":""}</p>}
+    {canManage&&<a href="/recipes" className="mt-3 inline-block text-sm font-medium text-primary underline underline-offset-4">Open Recipes to review menu prices and costs</a>}
    </div>
-  </details>
+  </section>
 
-  <details className="group mt-4 overflow-hidden rounded-2xl border border-border bg-white">
+  <details className="group mt-5 overflow-hidden rounded-2xl border border-border bg-white">
+   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
+    <span><span className="block text-sm font-semibold">Historical sales records</span><span className="mt-1 block text-xs text-muted-foreground">Open previous dates or review sales trends</span></span>
+    <ChevronDown aria-hidden="true" className="size-4 text-muted-foreground"/>
+   </summary>
+   <div className="space-y-3 border-t border-border p-4 sm:p-5">
+  <details className="group overflow-hidden rounded-xl border border-border bg-white">
    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
     <span><span className="block text-sm font-semibold">Sales trends</span><span className="mt-1 block text-xs text-muted-foreground">Daily, weekly, and monthly revenue and profit estimates</span></span>
     <ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180"/>
@@ -374,18 +387,20 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
    </section>
   </details>
 
-  <details className="group mt-4 overflow-hidden rounded-2xl border border-border bg-white">
-   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
-    <span><span className="block text-sm font-semibold">Previous sales records</span><span className="mt-1 block text-xs text-muted-foreground">Open a saved date to review or make a correction</span></span>
-    <span className="flex items-center gap-3"><CalendarDays aria-hidden="true" className="size-4 text-muted-foreground"/><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180"/></span>
-   </summary>
-   <section className="border-t border-border">
+  <section className="overflow-hidden rounded-xl border border-border bg-white">
+   <div className="border-b border-border p-4">
+    <h3 className="text-sm font-semibold">Saved sales records</h3>
+    <p className="mt-1 text-xs text-muted-foreground">Open a saved date to review or make a correction.</p>
+   </div>
+   <div>
     {data.recent.length===0?<p className="p-4 text-sm text-muted-foreground">No sales saved yet.</p>:<div className="divide-y divide-border">{data.recent.map(day=><button type="button" key={day.date} disabled={busy} onClick={()=>void choose(day.date)} className={`block w-full p-4 text-left transition-colors hover:bg-secondary ${day.date===draft.date?"bg-blue-50/60":""}`}>
      <span className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">{shortDate(day.date)}</span><span className="text-sm font-semibold tabular-nums">{formatMoney(day.revenueCents)}</span></span>
      <span className="mt-1 block text-xs text-muted-foreground">{day.entered}/{salesMenus.length} items entered · {day.total} servings · net estimate {formatMoney(day.netProfitCents)}{day.sourceDate?" · Imported historical data":""}</span>
     </button>)}</div>}
     <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Changes to a saved date create a new record version; existing price and cost snapshots are preserved.</p>
-   </section>
+   </div>
+  </section>
+   </div>
   </details>
   <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><TrendingUp size={15} aria-hidden="true" className="mt-0.5 shrink-0"/>Profit figures are estimates, not accounting statements. Sales entry does not deduct inventory.</p>
  </div>;

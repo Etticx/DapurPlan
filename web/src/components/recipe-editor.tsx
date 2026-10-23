@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BookOpen, Coffee, Plus, RotateCcw, Save, Trash2, UtensilsCrossed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,11 @@ export function RecipeEditor({initialRecipes,ingredientPacks,ingredientPrices,ca
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const costing=costRecipe(draft,ingredientPacks,ingredientPrices);
+  useEffect(()=>{
+    const menuId=new URLSearchParams(window.location.search).get("menu");
+    const index=initialRecipes.findIndex(recipe=>recipe.id===menuId);
+    if(index>=0){setSelected(index);setDraft(structuredClone(initialRecipes[index]));}
+  },[initialRecipes]);
   function edit(next:StoredRecipe) {setDraft(next);setDirty(true);setMessage("");setError("");}
   function choose(index:number) {
     if (dirty && !window.confirm("Discard your unsaved recipe changes?")) return;

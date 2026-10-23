@@ -145,14 +145,15 @@ negative and is highlighted. Record expenses by category, amount, and optional n
 Daily, weekly, and monthly trends use these same definitions. Expense edits use a
 version check and are retained in application history.
 
-The Daily sales screen prioritizes entering servings and saving the date. Expenses,
-profit breakdowns, trends, and past records are available in separate expandable
-sections. The selected Malaysia business date is shown above a keyboard-accessible
-menu table with serving quantities, applicable selling prices, and per-item revenue.
-Totals update while editing; invalid quantity text remains in its field with a local
-correction message. Save is version checked, and Cancel asks before discarding edits.
-Historical imported rows are identified as imported data; the sales form does not show
-a date-specific demo prompt.
+The Daily sales screen places the selected Malaysia business date and record status
+first, followed by the keyboard-accessible sales table and summary cards for revenue,
+servings, ingredient cost of sales and gross profit. A separate profit estimate shows
+estimated net profit; menu-level financial detail follows, with recipe ingredient
+breakdown expanded only when requested. Historical records and trends are inside a
+collapsible section. Totals update while editing; invalid quantity text remains in its
+field with a local correction message. Save is version checked, and Cancel asks before
+discarding edits. Historical imported rows are identified as imported data; the sales
+form does not show a date-specific demo prompt.
 
 Each sale snapshots the selling price, recipe quantities, ingredient prices and
 estimated ingredient cost per serving on first entry. Corrections keep those original
