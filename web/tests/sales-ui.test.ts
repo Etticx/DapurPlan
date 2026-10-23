@@ -23,3 +23,17 @@ test("money formatting uses an explicit unavailable label instead of an incomple
  assert.match(source,/function formatMoney\(cents:number\|null\)\{return cents===null\?"Not available"/);
  assert.match(source,/function summaryValue\(value:number\|null\)\{return value===null\?"Not available"/);
 });
+
+test("serving and expense fields use purpose-built text keyboards and quick steppers",()=>{
+ assert.match(source,/type="text" pattern="\[0-9\]\*" maxLength=\{7\} inputMode="numeric"/);
+ assert.match(source,/aria-label=\{`Decrease \$\{menu\.name\} servings`\}/);
+ assert.match(source,/aria-label=\{`Increase \$\{menu\.name\} servings`\}/);
+ assert.match(source,/type="text" inputMode="decimal" autoComplete="off" maxLength=\{10\}/);
+ assert.match(source,/value=\{expense\.amount\} onChange=\{event=>editExpense\(expense\.id,\{amount:event\.target\.value\}\)\}/);
+});
+
+test("expense amount keeps a fixed desktop width and stacks before the desktop breakpoint",()=>{
+ assert.match(source,/lg:grid-cols-\[minmax\(0,1fr\)_220px_minmax\(0,1fr\)_40px\]/);
+ assert.match(source,/className="mt-1\.5 flex h-11 w-full items-center/);
+ assert.match(source,/shrink-0 pl-3 text-sm font-medium text-muted-foreground">RM/);
+});

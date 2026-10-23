@@ -6,8 +6,9 @@ import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {salesMenus,type SalesData,type SalesDay,type SaleLine,type SalesTrendPeriod,type DailyExpense} from "@/lib/sales";
 import {malaysiaDate} from "@/lib/inventory";
+import {MAX_SALES_SERVINGS,parseExpenseAmount,parseServingsInput} from "@/lib/sales-input";
 
-type ExpenseDraft={id:string;category:string;amountCents:number|null;note:string};
+type ExpenseDraft={id:string;category:string;amount:string;note:string};
 const money=new Intl.NumberFormat("en-MY",{style:"currency",currency:"MYR"});
 function formatMoney(cents:number|null){return cents===null?"Not available":money.format(cents/100);}
 function revenueFor(lines:SaleLine[],fallbackPrices?:Record<string,number|null>){
@@ -30,7 +31,7 @@ function itemRevenue(line:SaleLine|undefined,fallbackPrices?:Record<string,numbe
  if(!line||line.quantity===null)return null;const price=line.unitPriceCents??fallbackPrices?.[line.menuId]??null;
  return line.quantity>0&&price===null?null:line.quantity*(price??0);
 }
-function initialExpenses(expenses:DailyExpense[]):ExpenseDraft[]{return expenses.map(expense=>({...expense}));}
+function initialExpenses(expenses:DailyExpense[]):ExpenseDraft[]{return expenses.map(expense=>({id:expense.id,category:expense.category,amount:(expense.amountCents/100).toFixed(2),note:expense.note}));}
 function summaryValue(value:number|null){return value===null?"Not available":money.format(value/100);}
 function shortDate(value:string){return new Date(`${value}T12:00:00+08:00`).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric",timeZone:"Asia/Kuala_Lumpur"});}
 
@@ -53,7 +54,7 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
  const totalRevenue=revenueFor(draft.lines,fallbackPrices);
  const ingredientCosts=ingredientCostFor(draft.lines,fallbackCosts);
  const grossProfit=totalRevenue===null||ingredientCosts===null?null:totalRevenue-ingredientCosts;
- const expenseTotal=expensesDraft.reduce((sum,expense)=>sum+(expense.amountCents??0),0);
+ const expenseTotal=expensesDraft.reduce((sum,expense)=>sum+(parseExpenseAmount(expense.amount)??0),0);
  const netProfit=grossProfit===null?null:grossProfit-expenseTotal;
  const previousRevenue=data.previousDay.version?revenueFor(data.previousDay.lines):null;
  const revenueChange=totalRevenue!==null&&previousRevenue!==null?totalRevenue-previousRevenue:null;
@@ -99,9 +100,14 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
   finally{setBusy(false);}
  }
  async function saveExpenses(e:React.FormEvent){
-  e.preventDefault();setBusy(true);setError("");setMessage("");
+  e.preventDefault();setError("");setMessage("");
+  const expenses=expensesDraft.map(expense=>({category:expense.category,amountCents:parseExpenseAmount(expense.amount),note:expense.note}));
+  if(expenses.some(expense=>expense.amountCents===null)){
+   setError("Enter an expense from RM 0.01 to RM 1,000,000.00, with up to 2 decimal places.");return;
+  }
+  setBusy(true);
   try{
-   const response=await fetch("/api/sales/expenses",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:draft.date,version:data.expenseVersion,expenses:expensesDraft,trendPeriod})});
+   const response=await fetch("/api/sales/expenses",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:draft.date,version:data.expenseVersion,expenses,trendPeriod})});
    const result=await response.json();
    if(!response.ok)throw new Error(result.error||"Could not save expenses.");
    setData(result);setExpensesDraft(initialExpenses(result.expenses));setExpensesDirty(false);
@@ -192,8 +198,18 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
       </div>
       <label htmlFor={`sale-${menu.id}`} className="block text-xs font-medium text-muted-foreground">
        Servings sold
-       <Input id={`sale-${menu.id}`} className="mt-1.5 h-11 text-center text-base font-semibold tabular-nums" type="number" min="0" max="1000000" step="1" inputMode="numeric" placeholder="Enter count" value={line.quantity??""}
-        onChange={event=>{const value=event.target.value===""?null:Number(event.target.value);updateLine(menu.id,{quantity:value,soldOut:value===null?false:line.soldOut});}}/>
+       <div className="mt-1.5 flex h-12 items-stretch overflow-hidden rounded-lg border border-input bg-white focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
+        <button type="button" aria-label={`Decrease ${menu.name} servings`} disabled={busy||line.quantity===null||line.quantity===0} className="grid w-12 shrink-0 place-items-center border-r border-border text-lg font-medium text-slate-600 transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:text-slate-300" onClick={()=>updateLine(menu.id,{quantity:Math.max(0,(line.quantity??1)-1)})}>−</button>
+        <Input id={`sale-${menu.id}`} className="h-full min-w-0 rounded-none border-0 px-1 text-center text-lg font-semibold tabular-nums shadow-none focus-visible:border-0 focus-visible:ring-0" type="text" pattern="[0-9]*" maxLength={7} inputMode="numeric" autoComplete="off" placeholder="0" value={line.quantity??""} aria-label={`${menu.name} servings sold`}
+        onChange={event=>{
+         const text=event.target.value;
+         if(text===""){updateLine(menu.id,{quantity:null,soldOut:false});return;}
+         const value=parseServingsInput(text);
+         if(value===undefined){setError("Enter a whole-number serving count from 0 to 1,000,000.");return;}
+         updateLine(menu.id,{quantity:value});
+        }}/>
+        <button type="button" aria-label={`Increase ${menu.name} servings`} disabled={busy||line.quantity===MAX_SALES_SERVINGS} className="grid w-12 shrink-0 place-items-center border-l border-border text-lg font-medium text-slate-600 transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:text-slate-300" onClick={()=>updateLine(menu.id,{quantity:Math.min(MAX_SALES_SERVINGS,(line.quantity??0)+1)})}>+</button>
+       </div>
       </label>
       <div className="flex items-center justify-between gap-3 sm:block sm:text-right">
        <label className="flex items-center gap-2 text-xs text-muted-foreground sm:justify-end">
@@ -243,18 +259,21 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
    <form onSubmit={saveExpenses} className="border-t border-border">
     <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
      <p className="text-xs text-muted-foreground">Do not include ingredient costs already counted in recipe costing.</p>
-     <Button type="button" variant="outline" size="sm" disabled={busy||expensesDraft.length>=100} onClick={()=>{setExpensesDraft(rows=>[...rows,{id:crypto.randomUUID(),category:"",amountCents:null,note:""}]);setExpensesDirty(true);}}>
+     <Button type="button" variant="outline" size="sm" disabled={busy||expensesDraft.length>=100} onClick={()=>{setExpensesDraft(rows=>[...rows,{id:crypto.randomUUID(),category:"",amount:"",note:""}]);setExpensesDirty(true);}}>
       <Plus aria-hidden="true"/>Add expense
      </Button>
     </div>
     <fieldset disabled={busy} className="space-y-3 px-4 pb-4 sm:px-5">
      {expensesDraft.length===0&&<p className="rounded-lg bg-background p-3 text-sm text-muted-foreground">No other expenses recorded for this date.</p>}
-     {expensesDraft.map((expense,index)=><div key={expense.id} className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-[minmax(0,1fr)_150px_minmax(0,1fr)_40px] sm:items-end">
+     {expensesDraft.map((expense,index)=><div key={expense.id} className="grid gap-3 rounded-xl border border-border p-3 lg:grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)_40px] lg:items-end">
       <label className="text-xs font-medium text-muted-foreground">Category
        <Input required minLength={2} maxLength={40} className="mt-1.5 h-10" placeholder="Rent, utilities, wages…" value={expense.category} onChange={event=>editExpense(expense.id,{category:event.target.value})}/>
       </label>
-      <label className="text-xs font-medium text-muted-foreground">Amount (RM)
-       <Input required className="mt-1.5 h-10" type="number" min="0.01" max="1000000" step="0.01" inputMode="decimal" value={expense.amountCents===null?"":(expense.amountCents/100).toFixed(2)} onChange={event=>editExpense(expense.id,{amountCents:event.target.value===""?null:Math.round(Number(event.target.value)*100)})}/>
+      <label className="block min-w-0 text-xs font-medium text-muted-foreground">Amount (RM)
+       <span className="mt-1.5 flex h-11 w-full items-center overflow-hidden rounded-lg border border-input bg-white transition-[border-color,box-shadow] focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10">
+        <span aria-hidden="true" className="shrink-0 pl-3 text-sm font-medium text-muted-foreground">RM</span>
+        <Input required className="h-full min-w-0 flex-1 rounded-none border-0 px-3 text-right text-base tabular-nums shadow-none focus-visible:border-0 focus-visible:ring-0 md:text-sm" type="text" inputMode="decimal" autoComplete="off" maxLength={10} pattern="[0-9]+([.,][0-9]{0,2})?" placeholder="0.00" aria-label={`Expense ${index+1} amount in RM`} value={expense.amount} onChange={event=>editExpense(expense.id,{amount:event.target.value})}/>
+       </span>
       </label>
       <label className="text-xs font-medium text-muted-foreground">Note <span className="font-normal">(optional)</span>
        <Input maxLength={120} className="mt-1.5 h-10" value={expense.note} onChange={event=>editExpense(expense.id,{note:event.target.value})}/>

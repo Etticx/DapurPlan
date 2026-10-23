@@ -77,6 +77,23 @@ test("daily profit snapshots recipe costs, includes expenses, and aggregates tre
  }finally{inventory.close();recipes.close();store.close();rmSync(dir,{recursive:true,force:true});}
 });
 
+test("daily expenses can be added, corrected and removed with versioned history",()=>{
+ const dir=mkdtempSync(join(tmpdir(),"dapur-expense-lifecycle-"));const path=join(dir,"test.sqlite");const store=openSalesStore(path);const raw=new Database(path);
+ try{
+  const date=malaysiaDate();
+  const added=store.saveExpenses({date,version:0,expenses:[{category:"Utilities",amountCents:1250,note:"Water bill"}]},"owner");
+  assert.equal(added.expenseVersion,1);assert.equal(added.expenses.length,1);assert.equal(added.expenses[0].amountCents,1250);
+  assert.equal(added.trend.at(-1)?.expensesCents,1250);
+  const corrected=store.saveExpenses({date,version:1,expenses:[{category:"Utilities",amountCents:1500,note:"Updated bill"}]},"owner");
+  assert.equal(corrected.expenseVersion,2);assert.equal(corrected.expenses[0].amountCents,1500);assert.equal(corrected.expenses[0].note,"Updated bill");
+  assert.throws(()=>store.saveExpenses({date,version:1,expenses:[]},"owner"),/changed/);
+  const removed=store.saveExpenses({date,version:2,expenses:[]},"owner");
+  assert.equal(removed.expenseVersion,3);assert.deepEqual(removed.expenses,[]);assert.equal(removed.trend.at(-1)?.expensesCents,0);
+  const history=raw.prepare("SELECT version FROM daily_expense_history WHERE date=? ORDER BY version").all(date) as {version:number}[];
+  assert.deepEqual(history.map(row=>row.version),[1,2,3]);
+ }finally{raw.close();store.close();rmSync(dir,{recursive:true,force:true});}
+});
+
 test("six-day demo import preserves existing entries, provenance and manual seventh day",()=>{
  const dir=mkdtempSync(join(tmpdir(),"dapur-demo-"));const store=openSalesStore(join(dir,"test.sqlite"));
  try{
