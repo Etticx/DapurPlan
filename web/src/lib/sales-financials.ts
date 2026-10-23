@@ -23,6 +23,11 @@ export function addCents(left:number,right:number){
  return Number.isSafeInteger(total)?total:null;
 }
 
+function subtractCents(left:number,right:number){
+ const total=left-right;
+ return Number.isSafeInteger(total)?total:null;
+}
+
 function multiplyCents(left:number,right:number){
  const total=left*right;
  return Number.isSafeInteger(total)?total:null;
@@ -32,7 +37,7 @@ export function calculateSaleLineFinancials(line:SaleFinancialInput):SaleLineFin
  if(line.quantity===null)return {menuId:line.menuId,revenueCents:null,ingredientCostCents:null,contributionCents:null,contributionMarginPercent:null};
  const revenueCents=line.quantity===0?0:line.unitPriceCents===null?null:multiplyCents(line.quantity,line.unitPriceCents);
  const ingredientCostCents=line.quantity===0?0:line.ingredientCostPerServingCents===null?null:multiplyCents(line.quantity,line.ingredientCostPerServingCents);
- const contributionCents=revenueCents===null||ingredientCostCents===null?null:revenueCents-ingredientCostCents;
+ const contributionCents=revenueCents===null||ingredientCostCents===null?null:subtractCents(revenueCents,ingredientCostCents);
  return {menuId:line.menuId,revenueCents,ingredientCostCents,contributionCents,contributionMarginPercent:contributionCents===null||revenueCents===null||revenueCents===0?null:contributionCents/revenueCents*100};
 }
 
@@ -65,8 +70,8 @@ export function calculateProfitTotals(input:{
 })
 
 {
- const grossProfitCents=input.revenueCents===null||input.ingredientCostCents===null?null:input.revenueCents-input.ingredientCostCents;
- const netProfitCents=grossProfitCents===null||!input.expensesRecorded?null:grossProfitCents-input.expensesCents;
+ const grossProfitCents=input.revenueCents===null||input.ingredientCostCents===null?null:subtractCents(input.revenueCents,input.ingredientCostCents);
+ const netProfitCents=grossProfitCents===null||!input.expensesRecorded?null:subtractCents(grossProfitCents,input.expensesCents);
  return {
   date:input.date,
   revenueCents:input.revenueCents,

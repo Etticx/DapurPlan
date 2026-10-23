@@ -13,6 +13,7 @@ export async function POST(request:Request){
   const period=["daily","weekly","monthly"].includes(body?.trendPeriod)?body.trendPeriod as SalesTrendPeriod:"daily";
   return NextResponse.json(getSalesStore().restore(body,session.username,period));
  }catch(e){
+  if(!(e instanceof SalesInputError||e instanceof SalesConflictError))console.error("Sales history restore failed",e);
   return NextResponse.json({error:e instanceof SalesInputError||e instanceof SalesConflictError?e.message:"Could not restore sales. No changes were saved."},{status:e instanceof SalesInputError?400:e instanceof SalesConflictError?409:503});
  }
 }

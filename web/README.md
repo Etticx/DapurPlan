@@ -182,6 +182,12 @@ returns the selected date, previous day, latest records and requested trend. POS
 `/api/sales` saves the complete five-row form; POST `/api/sales/expenses` replaces that
 date’s expense list. Owner and staff sessions can record sales and expenses; only
 owners can change selling and purchase prices.
+Sales and expense payloads are validated again on the server, and their records,
+snapshots, and version-history entries commit or roll back together. Database foreign
+keys and quantity/amount checks provide a second integrity boundary. Technical failures
+are logged server-side while API responses show a generic retry message; validation
+and version-conflict responses remain specific. Historical imports are only marked
+through the dedicated import operation, not by client-supplied sales fields.
 Partial days are visibly marked and must not be treated as complete training data.
 Use the date picker for older records. Run `npm run test:sales` to verify validation,
 price/cost snapshots, expenses, profit aggregation, trends, correction history,

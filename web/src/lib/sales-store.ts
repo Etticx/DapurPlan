@@ -21,6 +21,7 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
  CREATE TABLE IF NOT EXISTS daily_expense_days(date TEXT PRIMARY KEY,version INTEGER NOT NULL CHECK(version>0),updated_by TEXT NOT NULL,updated_at TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS daily_expenses(id TEXT PRIMARY KEY,date TEXT NOT NULL REFERENCES daily_expense_days(date),category TEXT NOT NULL,amount_cents INTEGER NOT NULL CHECK(amount_cents BETWEEN 1 AND 100000000),note TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS daily_expense_history(date TEXT NOT NULL REFERENCES daily_expense_days(date),version INTEGER NOT NULL,changed_by TEXT NOT NULL,changed_at TEXT NOT NULL,snapshot TEXT NOT NULL,PRIMARY KEY(date,version));
+ CREATE INDEX IF NOT EXISTS daily_expenses_date ON daily_expenses(date);
  `);for(const version of [3,4,8])db.prepare("INSERT OR IGNORE INTO schema_migrations VALUES (?,?)").run(version,new Date().toISOString());}).immediate();
  const salesLineColumns=db.prepare("PRAGMA table_info(sales_lines)").all() as {name:string}[];
  if(!salesLineColumns.some(column=>column.name==="unit_price_cents"))db.exec("ALTER TABLE sales_lines ADD COLUMN unit_price_cents INTEGER CHECK(unit_price_cents IS NULL OR unit_price_cents BETWEEN 0 AND 100000000)");

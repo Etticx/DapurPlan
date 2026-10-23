@@ -16,6 +16,7 @@ export async function POST(request:Request){
  catch(error){
   if(error instanceof ExpenseInputError)return NextResponse.json({error:error.message},{status:400});
   if(error instanceof ExpenseConflictError)return NextResponse.json({error:error.message},{status:409});
+  console.error("Daily expenses save failed",error);
   return NextResponse.json({error:"Expenses could not be saved. Your edits are still here; please try again."},{status:503});
  }
 }

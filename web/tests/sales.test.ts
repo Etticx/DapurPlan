@@ -4,7 +4,7 @@ import {mkdtempSync,rmSync} from "node:fs";import {tmpdir} from "node:os";import
 import {openSalesStore} from "../src/lib/sales-store";
 import {openInventoryStore} from "../src/lib/inventory-store";
 import {openRecipeStore} from "../src/lib/recipe-store";
-import {validateSales,validateExpenses,emptySalesDay} from "../src/lib/sales";
+import {validateSales,validateExpenses,emptySalesDay,salesMenus} from "../src/lib/sales";
 import {addDays,malaysiaDate} from "../src/lib/inventory";
 import {calculateProfitTotals,calculateSaleFinancialTotals,calculateSaleLineFinancials} from "../src/lib/sales-financials";
 
@@ -27,6 +27,8 @@ test("financial calculations use integer cents, sold servings and explicit unava
  assert.equal(complete.netProfitCents,-500);assert.equal(complete.netProfitMarginPercent,-500/9500*100);
  const noRevenue=calculateProfitTotals({date:"2026-01-01",revenueCents:0,ingredientCostCents:0,expensesCents:0,expensesRecorded:true,salesDays:1});
  assert.equal(noRevenue.grossProfitMarginPercent,null);assert.equal(noRevenue.netProfitMarginPercent,null);
+ const overflow=calculateProfitTotals({date:"2026-01-01",revenueCents:0,ingredientCostCents:Number.MAX_SAFE_INTEGER,expensesCents:Number.MAX_SAFE_INTEGER,expensesRecorded:true,salesDays:1});
+ assert.equal(overflow.grossProfitCents,-Number.MAX_SAFE_INTEGER);assert.equal(overflow.netProfitCents,null);
 });
 test("sales preserve blanks, persist corrections once per date and never change inventory",()=>{
  const dir=mkdtempSync(join(tmpdir(),"dapur-sales-"));const path=join(dir,"test.sqlite");const inventory=openInventoryStore(path);let store=openSalesStore(path);const raw=new Database(path);
@@ -35,6 +37,10 @@ test("sales preserve blanks, persist corrections once per date and never change 
  const saved=store.save(input,"owner");assert.equal(saved.day.version,1);assert.equal(saved.recent[0].entered,2);assert.equal(saved.recent[0].total,40);assert.equal(saved.day.lines[2].quantity,null);
  assert.throws(()=>store.save(input,"owner"));assert.equal(store.history(date).length,1);assert.throws(()=>store.save(saved.day,"visitor"));
  const corrected=store.save({...saved.day,lines:saved.day.lines.map((l,i)=>i===0?{...l,quantity:45}:l)},"owner");assert.equal(corrected.recent.length,1);assert.equal(corrected.recent[0].total,45);assert.equal(store.history(date).length,2);
+ raw.pragma("foreign_keys = ON");
+ const constrainedDate=addDays(date,-1);raw.prepare("INSERT INTO sales_days VALUES (?,?,?,?)").run(constrainedDate,1,"owner",new Date().toISOString());
+ assert.throws(()=>raw.prepare("INSERT INTO sales_lines (date,menu_id,quantity,sold_out,unit_price_cents,ingredient_cost_per_serving_cents,cost_snapshot) VALUES (?,?,?,?,?,?,?)").run(constrainedDate,"invalid-menu",1,0,null,null,null));
+ assert.throws(()=>raw.prepare("INSERT INTO sales_lines (date,menu_id,quantity,sold_out,unit_price_cents,ingredient_cost_per_serving_cents,cost_snapshot) VALUES (?,?,?,?,?,?,?)").run(constrainedDate,salesMenus[0].id,1000001,0,null,null,null));
  assert.deepEqual(inventory.list(),stock);
  store.close();store=openSalesStore(path);assert.deepEqual(store.day(date),corrected.day);
  raw.exec("CREATE TRIGGER fail_sales_history BEFORE INSERT ON sales_history BEGIN SELECT RAISE(ABORT,'test failure'); END");assert.throws(()=>store.save({...corrected.day,lines:input.lines},"owner"));assert.deepEqual(store.day(date),corrected.day);assert.equal(store.history(date).length,2);
@@ -77,9 +83,10 @@ test("daily revenue snapshots menu prices and compares with the previous calenda
   const previousDate=addDays(malaysiaDate(),-1);const today=malaysiaDate();
   const previous=emptySalesDay(previousDate);previous.lines[0].quantity=2;previous.lines[1].quantity=0;
   const previousSaved=store.save(previous,"owner");assert.equal(previousSaved.recent[0].revenueCents,5000);
-  const current=emptySalesDay(today);current.lines[0].quantity=3;current.lines[1].quantity=0;
+  const current=emptySalesDay(today);current.lines[0].quantity=3;current.lines[0].unitPriceCents=1;current.lines[0].ingredientCostPerServingCents=1;current.lines[1].quantity=0;
   const currentSaved=store.save(current,"owner");
   assert.equal(currentSaved.day.lines[0].unitPriceCents,2500);
+  assert.notEqual(currentSaved.day.lines[0].ingredientCostPerServingCents,1);
   assert.equal(currentSaved.day.lines[0].quantity!*currentSaved.day.lines[0].unitPriceCents!,7500);
   assert.equal(currentSaved.previousDay.date,previousDate);
   assert.equal(currentSaved.previousDay.lines[0].unitPriceCents,2500);
@@ -141,6 +148,9 @@ test("daily expenses can be added, corrected and removed with versioned history"
   assert.equal(removed.expenseVersion,3);assert.deepEqual(removed.expenses,[]);assert.equal(removed.trend.at(-1)?.expensesCents,0);
   const history=raw.prepare("SELECT version FROM daily_expense_history WHERE date=? ORDER BY version").all(date) as {version:number}[];
   assert.deepEqual(history.map(row=>row.version),[1,2,3]);
+  raw.exec("CREATE TRIGGER fail_expense_history BEFORE INSERT ON daily_expense_history BEGIN SELECT RAISE(ABORT,'test failure'); END");
+  assert.throws(()=>store.saveExpenses({date,version:3,expenses:[{category:"Rent",amountCents:2500,note:"New amount"}]},"owner"));
+  assert.equal(store.expenseState(date).expenseVersion,3);assert.deepEqual(store.expenseState(date).expenses,[]);
  }finally{raw.close();store.close();rmSync(dir,{recursive:true,force:true});}
 });
 
