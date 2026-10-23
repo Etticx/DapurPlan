@@ -131,6 +131,11 @@ optional note. Daily, weekly, and monthly trends include revenue, ingredient cos
 expenses, gross profit, and estimated net profit. Expense edits use a version check and
 are retained in application history.
 
+The Daily sales screen prioritizes entering servings and saving the date. Expenses,
+profit breakdowns, trends, and past records are available in separate expandable
+sections. Historical imported rows are identified as imported data; the sales form
+does not show a date-specific demo prompt.
+
 Each sale snapshots the selling price, recipe quantities, pack costs and estimated
 ingredient cost per serving on first entry. Corrections keep those original cost
 snapshots, so later recipe or pack price edits do not rewrite past P&L. Missing selling

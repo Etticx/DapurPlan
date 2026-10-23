@@ -1,6 +1,7 @@
 "use client";
+
 import {useState} from "react";
-import {BarChart3,Coffee,Save,RotateCcw,UtensilsCrossed,CalendarDays,Plus,Trash2} from "lucide-react";
+import {CalendarDays,ChevronDown,Coffee,Plus,RotateCcw,Save,Trash2,TrendingUp,UtensilsCrossed} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Input} from "@/components/ui/input";
 import {salesMenus,type SalesData,type SalesDay,type SaleLine,type SalesTrendPeriod,type DailyExpense} from "@/lib/sales";
@@ -8,7 +9,7 @@ import {malaysiaDate} from "@/lib/inventory";
 
 type ExpenseDraft={id:string;category:string;amountCents:number|null;note:string};
 const money=new Intl.NumberFormat("en-MY",{style:"currency",currency:"MYR"});
-function formatMoney(cents:number|null){return cents===null?"Incomplete":money.format(cents/100);}
+function formatMoney(cents:number|null){return cents===null?"Not available":money.format(cents/100);}
 function revenueFor(lines:SaleLine[],fallbackPrices?:Record<string,number|null>){
  const entered=lines.filter(line=>line.quantity!==null);if(!entered.length)return null;
  let total=0;
@@ -30,86 +31,317 @@ function itemRevenue(line:SaleLine|undefined,fallbackPrices?:Record<string,numbe
  return line.quantity>0&&price===null?null:line.quantity*(price??0);
 }
 function initialExpenses(expenses:DailyExpense[]):ExpenseDraft[]{return expenses.map(expense=>({...expense}));}
-function summaryValue(value:number|null){return value===null?"Incomplete":money.format(value/100);}
+function summaryValue(value:number|null){return value===null?"Not available":money.format(value/100);}
+function shortDate(value:string){return new Date(`${value}T12:00:00+08:00`).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric",timeZone:"Asia/Kuala_Lumpur"});}
 
 export function SalesEditor({initialData,canManage=false}:{initialData:SalesData;canManage?:boolean}){
- const [data,setData]=useState(initialData);const [draft,setDraft]=useState<SalesDay>(structuredClone(initialData.day));
- const [expensesDraft,setExpensesDraft]=useState<ExpenseDraft[]>(initialExpenses(initialData.expenses));const [expensesDirty,setExpensesDirty]=useState(false);
- const [dirty,setDirty]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState("");const [message,setMessage]=useState("");
- const [markDemo,setMarkDemo]=useState(initialData.day.date==="2026-10-21");const [trendPeriod,setTrendPeriod]=useState<SalesTrendPeriod>(initialData.trendPeriod);
- const entered=draft.lines.filter(l=>l.quantity!==null).length;const total=servingsFor(draft.lines);
- const isNew=draft.version===0;const fallbackPrices=isNew?data.menuPrices:undefined;const fallbackCosts=isNew?data.menuCosts:undefined;
- const totalRevenue=revenueFor(draft.lines,fallbackPrices);const ingredientCosts=ingredientCostFor(draft.lines,fallbackCosts);
+ const [data,setData]=useState(initialData);
+ const [draft,setDraft]=useState<SalesDay>(structuredClone(initialData.day));
+ const [expensesDraft,setExpensesDraft]=useState<ExpenseDraft[]>(initialExpenses(initialData.expenses));
+ const [expensesDirty,setExpensesDirty]=useState(false);
+ const [dirty,setDirty]=useState(false);
+ const [busy,setBusy]=useState(false);
+ const [error,setError]=useState("");
+ const [message,setMessage]=useState("");
+ const [trendPeriod,setTrendPeriod]=useState<SalesTrendPeriod>(initialData.trendPeriod);
+
+ const entered=draft.lines.filter(line=>line.quantity!==null).length;
+ const total=servingsFor(draft.lines);
+ const isNew=draft.version===0;
+ const fallbackPrices=isNew?data.menuPrices:undefined;
+ const fallbackCosts=isNew?data.menuCosts:undefined;
+ const totalRevenue=revenueFor(draft.lines,fallbackPrices);
+ const ingredientCosts=ingredientCostFor(draft.lines,fallbackCosts);
  const grossProfit=totalRevenue===null||ingredientCosts===null?null:totalRevenue-ingredientCosts;
  const expenseTotal=expensesDraft.reduce((sum,expense)=>sum+(expense.amountCents??0),0);
  const netProfit=grossProfit===null?null:grossProfit-expenseTotal;
  const previousRevenue=data.previousDay.version?revenueFor(data.previousDay.lines):null;
  const revenueChange=totalRevenue!==null&&previousRevenue!==null?totalRevenue-previousRevenue:null;
  const servingsChange=data.previousDay.version?total-servingsFor(data.previousDay.lines):null;
+
  async function load(date:string,period=trendPeriod){
-  const response=await fetch(`/api/sales?date=${encodeURIComponent(date)}&trend=${period}`,{cache:"no-store"});const result=await response.json();
-  if(!response.ok)throw new Error(result.error||"Could not load sales.");return result as SalesData;
+  const response=await fetch(`/api/sales?date=${encodeURIComponent(date)}&trend=${period}`,{cache:"no-store"});
+  const result=await response.json();
+  if(!response.ok)throw new Error(result.error||"Could not load sales.");
+  return result as SalesData;
  }
  async function choose(date:string){
   if(!date||date===draft.date)return;
-  if((dirty||expensesDirty)&&!window.confirm("Discard unsaved daily sales or expense changes?"))return;
+  if((dirty||expensesDirty)&&!window.confirm("Discard unsaved sales or expense changes?"))return;
   setBusy(true);setError("");setMessage("");
-  try{const result=await load(date);setData(result);setDraft(structuredClone(result.day));setExpensesDraft(initialExpenses(result.expenses));setMarkDemo(result.day.date==="2026-10-21");setDirty(false);setExpensesDirty(false);}
-  catch(e){setError(e instanceof Error?e.message:"Could not load this date.");}
+  try{
+   const result=await load(date);
+   setData(result);setDraft(structuredClone(result.day));setExpensesDraft(initialExpenses(result.expenses));
+   setDirty(false);setExpensesDirty(false);
+  }catch(e){setError(e instanceof Error?e.message:"Could not load this date.");}
   finally{setBusy(false);}
  }
  async function saveSales(e:React.FormEvent){
   e.preventDefault();setBusy(true);setError("");setMessage("");
   try{
-   const response=await fetch("/api/sales",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:draft.date,version:draft.version,lines:draft.lines,syntheticDemo:draft.date==="2026-10-21"&&markDemo,trendPeriod})});
-   const result=await response.json();if(!response.ok)throw new Error(result.error||"Could not save sales.");
-   setData(result);setDraft(structuredClone(result.day));setMarkDemo(result.day.date==="2026-10-21");setDirty(false);setMessage("Sales saved. Ingredient costs are based on the recipe and ingredient prices captured for this day.");
+   const response=await fetch("/api/sales",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:draft.date,version:draft.version,lines:draft.lines,trendPeriod})});
+   const result=await response.json();
+   if(!response.ok)throw new Error(result.error||"Could not save sales.");
+   setData(result);setDraft(structuredClone(result.day));setDirty(false);
+   setMessage("Daily sales saved. Your saved prices and costs are kept with this date.");
   }catch(e){setError(e instanceof Error?e.message:"Could not save sales. Please try again.");}
   finally{setBusy(false);}
  }
  async function fillMissingFinancials(){
   setBusy(true);setError("");setMessage("");
-  try{const response=await fetch("/api/sales/financials",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:draft.date,version:draft.version,trendPeriod})});const result=await response.json();if(!response.ok)throw new Error(result.error||"Could not fill missing prices and costs.");setData(result);setDraft(structuredClone(result.day));setMessage("Missing prices and costs filled using current settings. Revenue and estimated profit are updated. Existing recorded values were preserved.");}
-  catch(e){setError(e instanceof Error?e.message:"Could not fill missing prices and costs.");}finally{setBusy(false);}
+  try{
+   const response=await fetch("/api/sales/financials",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:draft.date,version:draft.version,trendPeriod})});
+   const result=await response.json();
+   if(!response.ok)throw new Error(result.error||"Could not fill missing prices and costs.");
+   setData(result);setDraft(structuredClone(result.day));
+   setMessage("Missing values filled using current prices and recipe costs. Previously saved values were preserved.");
+  }catch(e){setError(e instanceof Error?e.message:"Could not fill missing prices and costs.");}
+  finally{setBusy(false);}
  }
  async function saveExpenses(e:React.FormEvent){
   e.preventDefault();setBusy(true);setError("");setMessage("");
   try{
    const response=await fetch("/api/sales/expenses",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({date:draft.date,version:data.expenseVersion,expenses:expensesDraft,trendPeriod})});
-   const result=await response.json();if(!response.ok)throw new Error(result.error||"Could not save expenses.");
-   setData(result);setExpensesDraft(initialExpenses(result.expenses));setExpensesDirty(false);setMessage("Daily expenses saved and included in the P&L.");
+   const result=await response.json();
+   if(!response.ok)throw new Error(result.error||"Could not save expenses.");
+   setData(result);setExpensesDraft(initialExpenses(result.expenses));setExpensesDirty(false);
+   setMessage("Expenses saved and included in the profit estimate.");
   }catch(e){setError(e instanceof Error?e.message:"Could not save expenses. Please try again.");}
   finally{setBusy(false);}
  }
  async function changeTrend(period:SalesTrendPeriod){
-  if(period===trendPeriod)return;setBusy(true);setError("");
+  if(period===trendPeriod)return;
+  setBusy(true);setError("");
   try{const result=await load(draft.date,period);setData(result);setTrendPeriod(period);}
   catch(e){setError(e instanceof Error?e.message:"Could not load this trend.");}
   finally{setBusy(false);}
  }
- function editExpense(id:string,patch:Partial<ExpenseDraft>){setExpensesDraft(previous=>previous.map(expense=>expense.id===id?{...expense,...patch}:expense));setExpensesDirty(true);setMessage("");}
- return <>
-  <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="mb-2 text-xs font-semibold tracking-[0.14em] text-blue-500">A SMALL DAILY HABIT</p><h1 className="text-3xl font-semibold tracking-tight">Daily sales & profit</h1><p className="mt-2 text-sm text-muted-foreground">Track sales, recipe costs, expenses, and estimated profit.</p></div><div><label htmlFor="sales-date" className="mb-2 block text-xs text-muted-foreground">Sales date</label><Input id="sales-date" type="date" max={malaysiaDate()} value={draft.date} disabled={busy} onChange={e=>void choose(e.target.value)}/></div></div>
-  {draft.date==="2026-10-21"&&!draft.provenance&&<div className="mt-5 rounded-xl border border-amber-100 bg-amber-50 p-4 text-xs leading-6 text-amber-900"><p>Agreed demo for 21 October: chicken rice 41; kuey teow 30; nasi lemak 50; Kopi O ais 54; iced lemon tea 36.</p><label className="flex items-center gap-2"><input type="checkbox" checked={markDemo} disabled={busy} onChange={e=>setMarkDemo(e.target.checked)}/>Label this entry as synthetic demo sales</label></div>}
-  {draft.provenance&&<span className="mt-5 inline-flex rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium text-secondary-foreground">Demo data</span>}
-  <p className="mt-6 rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-secondary-foreground">Ingredient cost is an estimate from recipe quantities and ingredient prices per kg, litre or piece in Inventory. Missing ingredient prices make the ingredient cost, gross profit, and net profit incomplete. Sales never deduct inventory.</p>
-  {!isNew&&draft.lines.some(line=>line.quantity!==null&&(line.unitPriceCents===null||line.ingredientCostPerServingCents===null))&&<div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-100 bg-amber-50 p-4"><p className="max-w-2xl text-xs leading-5 text-amber-900">This record was saved with missing prices or costs. The owner can fill them using current settings. Already recorded prices and costs stay unchanged.</p>{canManage&&<Button size="sm" disabled={busy||dirty||expensesDirty} onClick={()=>void fillMissingFinancials()}>{busy?"Working…":"Fill missing prices and costs"}</Button>}{(dirty||expensesDirty)&&<p className="w-full text-xs text-amber-900">Save or discard your edits first.</p>}</div>}
-  <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">{[["Total revenue",summaryValue(totalRevenue)],["Servings sold",String(total)],["Ingredient costs",summaryValue(ingredientCosts)],["Gross profit",summaryValue(grossProfit)],["Estimated net profit",summaryValue(netProfit)]].map(([label,value])=><div key={label} className="rounded-2xl border border-border bg-white p-5"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-3 text-xl font-semibold">{value}</p>{label==="Estimated net profit"&&<p className="mt-1 text-xs text-muted-foreground">After {money.format(expenseTotal/100)} recorded expenses</p>}</div>)}</div>
-  <div className="mt-4 grid gap-4 sm:grid-cols-2"><div className="rounded-2xl border border-border bg-white p-5"><p className="text-xs text-muted-foreground">Revenue vs previous day</p><p className="mt-3 text-xl font-semibold">{revenueChange===null?"—":`${revenueChange>=0?"+":""}${money.format(revenueChange/100)}`}</p><p className="mt-1 text-xs text-muted-foreground">{data.previousDay.version?`${servingsChange!>=0?"+":""}${servingsChange} servings vs ${data.previousDay.date}`:"No previous-day sales record"}</p></div><div className="rounded-2xl border border-border bg-white p-5"><p className="text-xs text-muted-foreground">Record status</p><p className="mt-3 text-xl font-semibold">{busy?"Working…":dirty||expensesDirty?"Unsaved changes":draft.version?"Saved":"Not entered"}</p></div></div>
-  {error&&<p role="alert" className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-destructive">{error}</p>}{message&&<p role="status" className="mt-4 rounded-xl bg-green-50 p-4 text-sm text-green-800">{message}</p>}
-  <section className="mt-6 overflow-hidden rounded-2xl border border-border bg-white">
-   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-5"><div><h2 className="font-semibold">Menu sales and profit contribution</h2><p className="mt-1 text-xs text-muted-foreground">Per-item costs use the recipe and ingredient prices saved with each sale.</p></div><a href="/recipes" className="text-xs font-medium text-primary underline underline-offset-4">Review recipe costs</a></div>
-   <div className="overflow-x-auto"><table className="w-full min-w-[920px] text-left text-sm"><thead className="bg-slate-50 text-xs text-muted-foreground"><tr><th scope="col" className="px-5 py-3 font-medium">Menu item</th><th scope="col" className="px-5 py-3 font-medium">Servings</th><th scope="col" className="px-5 py-3 font-medium">Price / serving</th><th scope="col" className="px-5 py-3 font-medium">Revenue</th><th scope="col" className="px-5 py-3 font-medium">Ingredient costs</th><th scope="col" className="px-5 py-3 font-medium">Profit contribution</th><th scope="col" className="px-5 py-3 font-medium">Recipe ingredients</th></tr></thead>
-    <tbody className="divide-y divide-border">{salesMenus.map(menu=>{const line=draft.lines.find(item=>item.menuId===menu.id)!;const quantity=line.quantity;const unitCost=lineIngredientCost(line,fallbackCosts);const price=line.unitPriceCents??fallbackPrices?.[menu.id]??null;const rowRevenue=itemRevenue(line,fallbackPrices);const rowCost=quantity===null?null:quantity>0&&unitCost===null?null:quantity*(unitCost??0);const contribution=rowRevenue===null||rowCost===null?null:rowRevenue-rowCost;const snapshot=line.costSnapshot??(isNew?data.menuCosts[menu.id]:null);const Icon=menu.category==="Food"?UtensilsCrossed:Coffee;return <tr key={menu.id}><th scope="row" className="px-5 py-4 font-medium"><span className="flex items-center gap-2"><Icon className="size-4 text-blue-500" aria-hidden="true"/>{menu.name}</span><span className="mt-1 block text-xs font-normal text-muted-foreground">{price===null?"Selling price not set":""}</span></th><td className="px-5 py-4">{quantity??"—"}</td><td className="px-5 py-4">{price===null?"—":money.format(price/100)}</td><td className="px-5 py-4">{formatMoney(rowRevenue)}</td><td className="px-5 py-4">{formatMoney(rowCost)}</td><td className="px-5 py-4 font-medium">{formatMoney(contribution)}</td><td className="px-5 py-4">{snapshot?<details><summary className="cursor-pointer text-primary">View cost breakdown</summary><ul className="mt-2 space-y-1 text-xs text-muted-foreground">{snapshot.ingredients.map(item=><li key={item.ingredientId}>{item.name}: {item.quantity} {item.unit} / batch · {item.batchCostCents===null?"cost not set":money.format(item.batchCostCents/100)}</li>)}</ul><p className="mt-2 text-xs text-muted-foreground">Per-serving cost: {formatMoney(snapshot.perServingCostCents)}</p></details>:"—"}</td></tr>})}</tbody>
-   </table></div>
-   {totalRevenue===null&&entered>0&&<p className="border-t border-border px-5 py-3 text-xs text-amber-800">Set menu selling prices in Recipes to calculate revenue.</p>}
-   {ingredientCosts===null&&entered>0&&<p className="border-t border-border px-5 py-3 text-xs text-amber-800">Set missing ingredient prices in Inventory to calculate ingredient costs and profit.</p>}
+ function updateLine(menuId:string,patch:Partial<SaleLine>){
+  setDraft(current=>({...current,lines:current.lines.map(line=>line.menuId===menuId?{...line,...patch}:line)}));
+  setDirty(true);setMessage("");setError("");
+ }
+ function editExpense(id:string,patch:Partial<ExpenseDraft>){
+  setExpensesDraft(previous=>previous.map(expense=>expense.id===id?{...expense,...patch}:expense));
+  setExpensesDirty(true);setMessage("");
+ }
+
+ return <div className="mx-auto max-w-6xl">
+  <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+   <div>
+    <p className="mb-2 text-xs font-semibold tracking-[0.14em] text-blue-600">SALES REGISTER</p>
+    <h1 className="text-3xl font-semibold tracking-tight">Daily sales</h1>
+    <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">Record servings sold for each menu item. Your sales, revenue, and saved history update together.</p>
+   </div>
+   <label htmlFor="sales-date" className="block w-full text-sm font-medium sm:w-56">
+    Sales date
+    <span className="relative mt-2 block">
+     <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 size-4 text-muted-foreground"/>
+     <Input id="sales-date" className="pl-10" type="date" max={malaysiaDate()} value={draft.date} disabled={busy} onChange={event=>void choose(event.target.value)}/>
+    </span>
+   </label>
+  </header>
+
+  <section aria-label="Today at a glance" className="mt-6 grid gap-3 sm:grid-cols-3">
+   <article className="rounded-2xl border border-border bg-white p-4 sm:p-5">
+    <p className="text-sm text-muted-foreground">Servings sold</p>
+    <p className="mt-2 text-2xl font-semibold tabular-nums">{total}</p>
+    <p className="mt-1 text-xs text-muted-foreground">{entered} of {salesMenus.length} menu items entered</p>
+   </article>
+   <article className="rounded-2xl border border-border bg-white p-4 sm:p-5">
+    <p className="text-sm text-muted-foreground">Sales revenue</p>
+    <p className="mt-2 text-2xl font-semibold tabular-nums">{summaryValue(totalRevenue)}</p>
+    <p className="mt-1 text-xs text-muted-foreground">Based on servings and saved menu prices</p>
+   </article>
+   <article className="rounded-2xl border border-border bg-white p-4 sm:p-5">
+    <p className="text-sm text-muted-foreground">Compared with previous day</p>
+    <p className={`mt-2 text-2xl font-semibold tabular-nums ${revenueChange===null?"text-foreground":revenueChange>=0?"text-emerald-700":"text-rose-700"}`}>
+     {revenueChange===null?"—":`${revenueChange>=0?"+":"−"}${money.format(Math.abs(revenueChange)/100)}`}
+    </p>
+    <p className="mt-1 text-xs text-muted-foreground">{data.previousDay.version?`${servingsChange!>=0?"+":""}${servingsChange} servings · ${shortDate(data.previousDay.date)}`:"No previous-day sales recorded"}</p>
+   </article>
   </section>
-  <div className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-   <form onSubmit={saveSales} className="min-w-0 overflow-hidden rounded-2xl border border-border bg-white"><div className="flex items-center gap-2 border-b border-border p-5"><BarChart3 className="size-5 text-blue-500" aria-hidden="true"/><h2 className="font-semibold">Sales for {draft.date}</h2></div><fieldset disabled={busy} className="min-w-0 divide-y divide-border">{salesMenus.map(m=>{const line=draft.lines.find(l=>l.menuId===m.id)!;const Icon=m.category==="Food"?UtensilsCrossed:Coffee;return <div key={m.id} className="flex flex-wrap items-center justify-between gap-4 p-5"><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-secondary text-blue-500"><Icon className="size-5" aria-hidden="true"/></span><div><label htmlFor={`sale-${m.id}`} className="text-sm font-medium">{m.name}</label><p className="mt-1 text-xs text-muted-foreground">{line.quantity===null?"Not entered":`${line.quantity} ${m.category==="Food"?"plates":"cups"} sold`}</p></div></div><div className="flex items-center gap-4"><Input id={`sale-${m.id}`} className="w-24" type="number" min="0" max="1000000" step="1" placeholder="—" value={line.quantity??""} onChange={e=>{const value=e.target.value===""?null:Number(e.target.value);setDraft({...draft,lines:draft.lines.map(l=>l.menuId===m.id?{...l,quantity:value,soldOut:value===null?false:l.soldOut}:l)});setDirty(true);setMessage("");setError("");}}/><label className="flex items-center gap-2 text-xs text-muted-foreground"><input className="size-4 accent-blue-600" type="checkbox" checked={line.soldOut} disabled={line.quantity===null} onChange={e=>{setDraft({...draft,lines:draft.lines.map(l=>l.menuId===m.id?{...l,soldOut:e.target.checked}:l)});setDirty(true);setMessage("");}}/>Sold out<span className="sr-only">: {m.name}</span></label></div></div>})}</fieldset><p className="border-t border-border px-5 py-4 text-xs leading-5 text-muted-foreground">Blank means not entered; 0 means confirmed zero sales. Sold out flags do not change forecasts yet.</p><div className="flex flex-wrap justify-between gap-3 border-t border-border bg-slate-50/50 p-5"><Button type="button" variant="ghost" size="sm" disabled={busy||!dirty} onClick={()=>{setDraft(structuredClone(data.day));setDirty(false);setError("");setMessage("");}}><RotateCcw aria-hidden="true"/>Discard changes</Button><Button size="sm" disabled={busy||!dirty||entered===0}><Save aria-hidden="true"/>{busy?"Saving…":"Save daily sales"}</Button></div>{draft.updatedAt&&<p className="px-5 pb-4 text-xs text-muted-foreground">Saved by {draft.updatedBy} · {new Date(draft.updatedAt).toLocaleString("en-MY",{timeZone:"Asia/Kuala_Lumpur"})}</p>}</form>
-   <form onSubmit={saveExpenses} className="overflow-hidden rounded-2xl border border-border bg-white"><div className="flex items-center justify-between gap-2 border-b border-border p-5"><div><h2 className="font-semibold">Other daily expenses</h2><p className="mt-1 text-xs text-muted-foreground">Exclude ingredient purchases already counted in recipe costs.</p></div><Button type="button" size="sm" variant="outline" disabled={busy||expensesDraft.length>=100} onClick={()=>{setExpensesDraft(rows=>[...rows,{id:crypto.randomUUID(),category:"",amountCents:null,note:""}]);setExpensesDirty(true);}}><Plus aria-hidden="true"/>Add</Button></div><fieldset disabled={busy} className="space-y-3 p-4">{expensesDraft.length===0&&<p className="text-sm text-muted-foreground">No other expenses recorded for this date.</p>}{expensesDraft.map((expense,index)=><div key={expense.id} className="rounded-xl border border-border p-3"><div className="flex items-start gap-2"><label className="flex-1 text-xs text-muted-foreground">Category<Input required minLength={2} maxLength={40} className="mt-1" placeholder="Rent, utilities, wages…" value={expense.category} onChange={e=>editExpense(expense.id,{category:e.target.value})}/></label><button type="button" className="mt-6 rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Remove expense ${index+1}`} onClick={()=>{setExpensesDraft(rows=>rows.filter(row=>row.id!==expense.id));setExpensesDirty(true);}}><Trash2 className="size-4" aria-hidden="true"/></button></div><label className="mt-3 block text-xs text-muted-foreground">Amount (RM)<Input required className="mt-1" type="number" min="0.01" max="1000000" step="0.01" value={expense.amountCents===null?"":(expense.amountCents/100).toFixed(2)} onChange={e=>editExpense(expense.id,{amountCents:e.target.value===""?null:Math.round(Number(e.target.value)*100)})}/></label><label className="mt-3 block text-xs text-muted-foreground">Note (optional)<Input maxLength={120} className="mt-1" value={expense.note} onChange={e=>editExpense(expense.id,{note:e.target.value})}/></label></div>)}</fieldset><div className="flex items-center justify-between border-t border-border bg-slate-50/50 p-4"><span className="text-sm font-medium">Total: {money.format(expenseTotal/100)}</span><Button size="sm" disabled={busy||!expensesDirty}><Save aria-hidden="true"/>{busy?"Saving…":"Save expenses"}</Button></div><p className="px-4 pb-4 text-xs text-muted-foreground">Expense record version {data.expenseVersion}</p></form>
-  </div>
-  <section className="mt-6 overflow-hidden rounded-2xl border border-border bg-white"><div className="flex flex-wrap items-center justify-between gap-4 border-b border-border p-5"><div><h2 className="font-semibold">Profit & loss trends</h2><p className="mt-1 text-xs text-muted-foreground">Estimated figures for periods ending on {draft.date}.</p></div><div className="flex gap-1 rounded-lg bg-background p-1">{(["daily","weekly","monthly"] as const).map(period=><button key={period} type="button" disabled={busy} aria-pressed={trendPeriod===period} onClick={()=>void changeTrend(period)} className={`rounded-md px-3 py-2 text-xs font-medium capitalize ${trendPeriod===period?"bg-white text-primary shadow-sm":"text-muted-foreground hover:text-foreground"}`}>{period}</button>)}</div></div><div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead className="bg-slate-50 text-xs text-muted-foreground"><tr><th scope="col" className="px-5 py-3 font-medium">Period</th><th scope="col" className="px-5 py-3 font-medium">Revenue</th><th scope="col" className="px-5 py-3 font-medium">Ingredient costs</th><th scope="col" className="px-5 py-3 font-medium">Other expenses</th><th scope="col" className="px-5 py-3 font-medium">Gross profit</th><th scope="col" className="px-5 py-3 font-medium">Estimated net profit</th></tr></thead><tbody className="divide-y divide-border">{data.trend.map(period=><tr key={period.date}><th scope="row" className="px-5 py-3 font-medium">{period.date}</th><td className="px-5 py-3">{summaryValue(period.revenueCents)}</td><td className="px-5 py-3">{summaryValue(period.ingredientCostCents)}</td><td className="px-5 py-3">{money.format(period.expensesCents/100)}</td><td className="px-5 py-3">{summaryValue(period.grossProfitCents)}</td><td className="px-5 py-3 font-medium">{summaryValue(period.netProfitCents)}</td></tr>)}</tbody></table></div><p className="border-t border-border px-5 py-3 text-xs text-muted-foreground">Days without sales are counted as zero revenue; incomplete prices or ingredient costs are shown as incomplete. Daily expenses are counted once in each trend period.</p></section>
-  <div className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_300px]"><section className="overflow-hidden rounded-2xl border border-border bg-white"><div className="flex items-center gap-2 border-b border-border p-5"><CalendarDays className="size-4 text-blue-500" aria-hidden="true"/><h2 className="font-semibold">Recent records</h2></div>{data.recent.length===0?<p className="p-5 text-sm leading-6 text-muted-foreground">No sales saved yet. Your latest 30 saved dates will appear here.</p>:<div className="divide-y divide-border">{data.recent.map(day=><button type="button" key={day.date} disabled={busy} onClick={()=>void choose(day.date)} className={`block w-full p-4 text-left hover:bg-secondary ${day.date===draft.date?"bg-background":""}`}><span className="text-sm font-medium">{day.date}</span><span className="mt-1 block text-xs text-muted-foreground">{day.entered}/5 items entered · {day.total} servings · revenue {formatMoney(day.revenueCents)} · net {formatMoney(day.netProfitCents)}{day.sourceDate?" · Synthetic demo":""}</span></button>)}</div>}<p className="border-t border-border p-5 text-xs leading-5 text-muted-foreground">Corrections update the same day and retain an edit history.</p></section></div>
- </>;
+
+  {error&&<p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-destructive">{error}</p>}
+  {message&&<p role="status" className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">{message}</p>}
+  {draft.provenance&&<p className="mt-4 inline-flex rounded-full border border-border bg-white px-3 py-1.5 text-xs text-muted-foreground">Imported historical record · {draft.provenance.sourceDate}</p>}
+
+  <form onSubmit={saveSales} className="mt-6 overflow-hidden rounded-2xl border border-border bg-white shadow-sm">
+   <div className="flex flex-col gap-2 border-b border-border px-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <div>
+     <h2 className="text-lg font-semibold">Enter today’s sales</h2>
+     <p className="mt-1 text-sm text-muted-foreground">How many servings of each item did you sell?</p>
+    </div>
+    <span className={`w-fit rounded-full px-3 py-1 text-xs font-medium ${dirty?"bg-amber-50 text-amber-800":draft.version?"bg-emerald-50 text-emerald-800":"bg-slate-100 text-slate-600"}`}>
+     {busy?"Saving…":dirty?"Unsaved changes":draft.version?"Saved":"Not entered"}
+    </span>
+   </div>
+
+   <div className="divide-y divide-border">
+    {salesMenus.map(menu=>{
+     const line=draft.lines.find(item=>item.menuId===menu.id)!;
+     const price=line.unitPriceCents??fallbackPrices?.[menu.id]??null;
+     const rowRevenue=itemRevenue(line,fallbackPrices);
+     const Icon=menu.category==="Food"?UtensilsCrossed:Coffee;
+     return <div key={menu.id} className="grid gap-4 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_144px_130px] sm:items-center sm:px-6">
+      <div className="flex min-w-0 items-center gap-3">
+       <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700"><Icon size={18} aria-hidden="true"/></span>
+       <div className="min-w-0">
+        <label htmlFor={`sale-${menu.id}`} className="block text-sm font-semibold">{menu.name}</label>
+        <p className="mt-1 text-xs text-muted-foreground">{price===null?"Selling price not set":`${money.format(price/100)} per serving`}</p>
+       </div>
+      </div>
+      <label htmlFor={`sale-${menu.id}`} className="block text-xs font-medium text-muted-foreground">
+       Servings sold
+       <Input id={`sale-${menu.id}`} className="mt-1.5 h-11 text-center text-base font-semibold tabular-nums" type="number" min="0" max="1000000" step="1" inputMode="numeric" placeholder="Enter count" value={line.quantity??""}
+        onChange={event=>{const value=event.target.value===""?null:Number(event.target.value);updateLine(menu.id,{quantity:value,soldOut:value===null?false:line.soldOut});}}/>
+      </label>
+      <div className="flex items-center justify-between gap-3 sm:block sm:text-right">
+       <label className="flex items-center gap-2 text-xs text-muted-foreground sm:justify-end">
+        <input className="size-4 accent-blue-600" type="checkbox" checked={line.soldOut} disabled={busy||line.quantity===null} onChange={event=>updateLine(menu.id,{soldOut:event.target.checked})}/>
+        Sold out
+        <span className="sr-only">: {menu.name}</span>
+       </label>
+       <p className="text-sm font-semibold tabular-nums sm:mt-2">{rowRevenue===null?"—":money.format(rowRevenue/100)}</p>
+       <span className="sr-only">estimated revenue</span>
+      </div>
+     </div>;
+    })}
+   </div>
+
+   <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-border bg-white/95 px-4 py-4 shadow-[0_-8px_20px_-18px_rgba(15,23,42,0.4)] backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-6">
+    <p className="text-xs leading-5 text-muted-foreground">Blank = not entered. Enter 0 for confirmed no sales. Sold-out is optional.</p>
+    <div className="flex flex-col-reverse gap-2 sm:flex-row">
+     <Button type="button" variant="ghost" size="sm" disabled={busy||!dirty} onClick={()=>{setDraft(structuredClone(data.day));setDirty(false);setError("");setMessage("");}}>
+      <RotateCcw aria-hidden="true"/>Discard
+     </Button>
+     <Button size="sm" disabled={busy||!dirty||entered===0}>
+      <Save aria-hidden="true"/>{busy?"Saving…":"Save sales"}
+     </Button>
+    </div>
+   </div>
+   {draft.updatedAt&&<p className="border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-6">Last saved {new Date(draft.updatedAt).toLocaleString("en-MY",{timeZone:"Asia/Kuala_Lumpur"})}{draft.updatedBy?` by ${draft.updatedBy}`:""}</p>}
+  </form>
+
+  {!isNew&&draft.lines.some(line=>line.quantity!==null&&(line.unitPriceCents===null||line.ingredientCostPerServingCents===null))&&
+   <details className="group mt-4 rounded-2xl border border-amber-200 bg-amber-50">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 text-sm font-medium text-amber-950 [&::-webkit-details-marker]:hidden">
+     Some saved costs or prices are missing
+     <ChevronDown aria-hidden="true" className="size-4 shrink-0 transition-transform group-open:rotate-180"/>
+    </summary>
+    <div className="flex flex-col gap-3 border-t border-amber-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+     <p className="text-xs leading-5 text-amber-900">An owner can fill missing values from current menu prices and recipe costs. Existing recorded values stay unchanged.</p>
+     {canManage&&<Button size="sm" variant="outline" disabled={busy||dirty||expensesDirty} onClick={()=>void fillMissingFinancials()}>{busy?"Working…":"Fill missing values"}</Button>}
+     {(dirty||expensesDirty)&&<p className="text-xs text-amber-900">Save or discard your edits first.</p>}
+    </div>
+   </details>}
+
+  <details className="group mt-4 overflow-hidden rounded-2xl border border-border bg-white">
+   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
+    <span><span className="block text-sm font-semibold">Other daily expenses</span><span className="mt-1 block text-xs text-muted-foreground">Optional · rent, utilities, wages, and similar costs</span></span>
+    <span className="flex items-center gap-3"><span className="text-sm font-semibold tabular-nums">{money.format(expenseTotal/100)}</span><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180"/></span>
+   </summary>
+   <form onSubmit={saveExpenses} className="border-t border-border">
+    <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5">
+     <p className="text-xs text-muted-foreground">Do not include ingredient costs already counted in recipe costing.</p>
+     <Button type="button" variant="outline" size="sm" disabled={busy||expensesDraft.length>=100} onClick={()=>{setExpensesDraft(rows=>[...rows,{id:crypto.randomUUID(),category:"",amountCents:null,note:""}]);setExpensesDirty(true);}}>
+      <Plus aria-hidden="true"/>Add expense
+     </Button>
+    </div>
+    <fieldset disabled={busy} className="space-y-3 px-4 pb-4 sm:px-5">
+     {expensesDraft.length===0&&<p className="rounded-lg bg-background p-3 text-sm text-muted-foreground">No other expenses recorded for this date.</p>}
+     {expensesDraft.map((expense,index)=><div key={expense.id} className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-[minmax(0,1fr)_150px_minmax(0,1fr)_40px] sm:items-end">
+      <label className="text-xs font-medium text-muted-foreground">Category
+       <Input required minLength={2} maxLength={40} className="mt-1.5 h-10" placeholder="Rent, utilities, wages…" value={expense.category} onChange={event=>editExpense(expense.id,{category:event.target.value})}/>
+      </label>
+      <label className="text-xs font-medium text-muted-foreground">Amount (RM)
+       <Input required className="mt-1.5 h-10" type="number" min="0.01" max="1000000" step="0.01" inputMode="decimal" value={expense.amountCents===null?"":(expense.amountCents/100).toFixed(2)} onChange={event=>editExpense(expense.id,{amountCents:event.target.value===""?null:Math.round(Number(event.target.value)*100)})}/>
+      </label>
+      <label className="text-xs font-medium text-muted-foreground">Note <span className="font-normal">(optional)</span>
+       <Input maxLength={120} className="mt-1.5 h-10" value={expense.note} onChange={event=>editExpense(expense.id,{note:event.target.value})}/>
+      </label>
+      <button type="button" className="grid size-10 place-items-center rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" aria-label={`Remove expense ${index+1}`} onClick={()=>{setExpensesDraft(rows=>rows.filter(row=>row.id!==expense.id));setExpensesDirty(true);}}>
+       <Trash2 className="size-4" aria-hidden="true"/>
+      </button>
+     </div>)}
+    </fieldset>
+    <div className="flex flex-col gap-3 border-t border-border bg-slate-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+     <span className="text-sm font-medium">Expense total: {money.format(expenseTotal/100)}</span>
+     <Button size="sm" disabled={busy||!expensesDirty}><Save aria-hidden="true"/>{busy?"Saving…":"Save expenses"}</Button>
+    </div>
+   </form>
+  </details>
+
+  <details className="group mt-4 overflow-hidden rounded-2xl border border-border bg-white">
+   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
+    <span><span className="block text-sm font-semibold">Profit estimate</span><span className="mt-1 block text-xs text-muted-foreground">Revenue minus estimated ingredient costs and recorded expenses</span></span>
+    <span className="flex items-center gap-3"><span className="text-sm font-semibold tabular-nums">{summaryValue(netProfit)}</span><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180"/></span>
+   </summary>
+   <div className="border-t border-border p-4 sm:p-5">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+     {[["Revenue",totalRevenue],["Ingredient costs",ingredientCosts],["Gross profit",grossProfit],["Estimated net profit",netProfit]].map(([label,value])=><article key={label as string} className="rounded-xl bg-background p-3">
+      <p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-base font-semibold tabular-nums">{summaryValue(value as number|null)}</p>
+     </article>)}
+    </div>
+    <p className="mt-3 text-xs leading-5 text-muted-foreground">Estimates use recipe ingredient quantities and saved prices. Missing costs are shown as “Not available”. Unrecorded expenses are not included.</p>
+    <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+     <table className="w-full min-w-[650px] text-left text-sm">
+      <thead className="bg-slate-50 text-xs text-muted-foreground"><tr><th scope="col" className="px-4 py-3 font-medium">Menu item</th><th scope="col" className="px-4 py-3 font-medium">Servings</th><th scope="col" className="px-4 py-3 font-medium">Revenue</th><th scope="col" className="px-4 py-3 font-medium">Ingredient cost</th><th scope="col" className="px-4 py-3 font-medium">Contribution</th><th scope="col" className="px-4 py-3 font-medium">Recipe details</th></tr></thead>
+      <tbody className="divide-y divide-border">
+       {salesMenus.map(menu=>{
+        const line=draft.lines.find(item=>item.menuId===menu.id)!;
+        const quantity=line.quantity;
+        const unitCost=lineIngredientCost(line,fallbackCosts);
+        const rowRevenue=itemRevenue(line,fallbackPrices);
+        const rowCost=quantity===null?null:quantity>0&&unitCost===null?null:quantity*(unitCost??0);
+        const contribution=rowRevenue===null||rowCost===null?null:rowRevenue-rowCost;
+        const snapshot=line.costSnapshot??(isNew?data.menuCosts[menu.id]:null);
+        return <tr key={menu.id}>
+         <th scope="row" className="px-4 py-3 font-medium">{menu.name}</th><td className="px-4 py-3">{quantity??"—"}</td>
+         <td className="px-4 py-3">{formatMoney(rowRevenue)}</td><td className="px-4 py-3">{formatMoney(rowCost)}</td><td className="px-4 py-3 font-medium">{formatMoney(contribution)}</td>
+         <td className="px-4 py-3">{snapshot?<details><summary className="cursor-pointer text-primary">View</summary><ul className="mt-2 space-y-1 text-xs text-muted-foreground">{snapshot.ingredients.map(item=><li key={item.ingredientId}>{item.name}: {item.quantity} {item.unit} / batch · {item.batchCostCents===null?"cost not set":money.format(item.batchCostCents/100)}</li>)}</ul><p className="mt-2 text-xs text-muted-foreground">Per-serving cost: {formatMoney(snapshot.perServingCostCents)}</p></details>:"—"}</td>
+        </tr>;
+       })}
+      </tbody>
+     </table>
+    </div>
+    {(totalRevenue===null||ingredientCosts===null)&&entered>0&&<p className="mt-3 text-xs text-amber-800">{totalRevenue===null?"Set menu prices in Recipes. ":""}{ingredientCosts===null?"Set missing ingredient prices in Inventory.":""}</p>}
+    {canManage&&<a href="/recipes" className="mt-3 inline-block text-xs font-medium text-primary underline underline-offset-4">Review menu and recipe prices</a>}
+   </div>
+  </details>
+
+  <details className="group mt-4 overflow-hidden rounded-2xl border border-border bg-white">
+   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
+    <span><span className="block text-sm font-semibold">Sales trends</span><span className="mt-1 block text-xs text-muted-foreground">Daily, weekly, and monthly revenue and profit estimates</span></span>
+    <ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180"/>
+   </summary>
+   <section className="border-t border-border">
+    <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+     <p className="text-xs text-muted-foreground">Periods ending {shortDate(draft.date)}</p>
+     <div className="flex w-fit gap-1 rounded-lg bg-background p-1">{(["daily","weekly","monthly"] as const).map(period=><button key={period} type="button" disabled={busy} aria-pressed={trendPeriod===period} onClick={()=>void changeTrend(period)} className={`rounded-md px-3 py-2 text-xs font-medium capitalize ${trendPeriod===period?"bg-white text-primary shadow-sm":"text-muted-foreground hover:text-foreground"}`}>{period}</button>)}</div>
+    </div>
+    <div className="overflow-x-auto">
+     <table className="w-full min-w-[700px] text-left text-sm">
+      <thead className="bg-slate-50 text-xs text-muted-foreground"><tr><th scope="col" className="px-4 py-3 font-medium">Period</th><th scope="col" className="px-4 py-3 font-medium">Revenue</th><th scope="col" className="px-4 py-3 font-medium">Ingredient costs</th><th scope="col" className="px-4 py-3 font-medium">Other expenses</th><th scope="col" className="px-4 py-3 font-medium">Gross profit</th><th scope="col" className="px-4 py-3 font-medium">Estimated net profit</th></tr></thead>
+      <tbody className="divide-y divide-border">{data.trend.map(period=><tr key={period.date}><th scope="row" className="px-4 py-3 font-medium">{period.date}</th><td className="px-4 py-3">{summaryValue(period.revenueCents)}</td><td className="px-4 py-3">{summaryValue(period.ingredientCostCents)}</td><td className="px-4 py-3">{money.format(period.expensesCents/100)}</td><td className="px-4 py-3">{summaryValue(period.grossProfitCents)}</td><td className="px-4 py-3 font-medium">{summaryValue(period.netProfitCents)}</td></tr>)}</tbody>
+     </table>
+    </div>
+    <p className="border-t border-border px-4 py-3 text-xs leading-5 text-muted-foreground sm:px-5">A missing price or cost makes that period’s profit estimate unavailable. Periods without saved sales show zero revenue.</p>
+   </section>
+  </details>
+
+  <details className="group mt-4 overflow-hidden rounded-2xl border border-border bg-white">
+   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4 sm:p-5 [&::-webkit-details-marker]:hidden">
+    <span><span className="block text-sm font-semibold">Previous sales records</span><span className="mt-1 block text-xs text-muted-foreground">Open a saved date to review or make a correction</span></span>
+    <span className="flex items-center gap-3"><CalendarDays aria-hidden="true" className="size-4 text-muted-foreground"/><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open:rotate-180"/></span>
+   </summary>
+   <section className="border-t border-border">
+    {data.recent.length===0?<p className="p-4 text-sm text-muted-foreground">No sales saved yet.</p>:<div className="divide-y divide-border">{data.recent.map(day=><button type="button" key={day.date} disabled={busy} onClick={()=>void choose(day.date)} className={`block w-full p-4 text-left transition-colors hover:bg-secondary ${day.date===draft.date?"bg-blue-50/60":""}`}>
+     <span className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">{shortDate(day.date)}</span><span className="text-sm font-semibold tabular-nums">{formatMoney(day.revenueCents)}</span></span>
+     <span className="mt-1 block text-xs text-muted-foreground">{day.entered}/{salesMenus.length} items entered · {day.total} servings · net estimate {formatMoney(day.netProfitCents)}{day.sourceDate?" · Imported historical data":""}</span>
+    </button>)}</div>}
+    <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Changes to a saved date create a new record version; existing price and cost snapshots are preserved.</p>
+   </section>
+  </details>
+  <p className="mt-4 flex items-start gap-2 text-xs leading-5 text-muted-foreground"><TrendingUp size={15} aria-hidden="true" className="mt-0.5 shrink-0"/>Profit figures are estimates, not accounting statements. Sales entry does not deduct inventory.</p>
+ </div>;
 }
