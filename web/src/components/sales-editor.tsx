@@ -299,6 +299,7 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
      {[["Revenue",totalRevenue],["Ingredient costs",ingredientCosts],["Gross profit",grossProfit],["Estimated net profit",netProfit]].map(([label,value])=><article key={label as string} className="rounded-xl bg-background p-3">
       <p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-base font-semibold tabular-nums">{summaryValue(value as number|null)}</p>
+      {label==="Estimated net profit"&&<p className="mt-2 text-xs leading-5 text-muted-foreground">Gross profit − other recorded expenses = estimated net profit</p>}
      </article>)}
     </div>
     <p className="mt-3 text-xs leading-5 text-muted-foreground">Estimates use recipe ingredient quantities and saved prices. Missing costs are shown as “Not available”. Unrecorded expenses are not included.</p>
