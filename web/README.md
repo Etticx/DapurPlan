@@ -125,24 +125,54 @@ pack sizes and pack costs. Set water cost per litre separately because water is 
 stock-tracked. The recipe editor shows ingredient batch costs and estimated cost per
 serving; missing prices leave totals explicitly incomplete.
 
-Daily sales show per-menu revenue, ingredient cost for servings sold, and profit
-contribution. The P&L totals revenue, ingredient costs, gross profit, manually recorded
-other expenses, and estimated net profit. Record expenses by category, amount, and
-optional note. Daily, weekly, and monthly trends include revenue, ingredient costs,
-expenses, gross profit, and estimated net profit. Expense edits use a version check and
-are retained in application history.
+Daily sales use one shared calculation for the page, saved summaries, and trends. Revenue
+is each saved selling-price snapshot multiplied by servings sold. Ingredient cost of
+sales is each saved per-serving recipe-cost snapshot multiplied by servings sold; it is
+not based on servings prepared, ingredient purchases, stock counts, or inventory
+movements. Recipe batch ingredient costs and per-serving costs are rounded to the nearest
+sen when snapshots are created; saved money and displayed totals use integer sen.
+Profit contribution per menu item is its revenue minus its ingredient cost of sales.
+Gross profit is total revenue minus ingredient cost of sales. Profit margin is profit
+divided by revenue and is unavailable when revenue is zero or an input is missing.
 
-The Daily sales screen prioritizes entering servings and saving the date. Expenses,
-profit breakdowns, trends, and past records are available in separate expandable
-sections. Historical imported rows are identified as imported data; the sales form
-does not show a date-specific demo prompt.
+Recorded other operating expenses are kept separate from ingredient cost of sales.
+Estimated net profit is gross profit minus the saved other-expense list, and remains
+unavailable until that list is saved (save an empty list to confirm that no other
+expenses were recorded). It is only an estimate, not complete accounting net profit:
+expenses not recorded in DapurPlan are excluded. Missing prices, recipe costs, or
+expense records are not treated as zero. Negative per-item contribution remains
+negative and is highlighted. Record expenses by category, amount, and optional note.
+Daily, weekly, and monthly trends use these same definitions. Expense edits use a
+version check and are retained in application history.
 
-Each sale snapshots the selling price, recipe quantities, pack costs and estimated
-ingredient cost per serving on first entry. Corrections keep those original cost
-snapshots, so later recipe or pack price edits do not rewrite past P&L. Missing selling
-or ingredient costs are shown as incomplete, not treated as zero. Sales and optional
-sold-out flags never deduct stock and do not yet feed a model. No sales are seeded
-automatically.
+The Daily sales screen places the selected Malaysia business date and record status
+first, followed by the keyboard-accessible sales table and summary cards for revenue,
+servings, ingredient cost of sales and gross profit. A separate profit estimate shows
+estimated net profit; menu-level financial detail follows, with recipe ingredient
+breakdown expanded only when requested. Historical records and trends are inside a
+collapsible section. Totals update while editing; invalid quantity text remains in its
+field with a local correction message. Save is version checked, and Cancel asks before
+discarding edits. Historical imported rows are identified as imported data; the sales
+form does not show a date-specific demo prompt.
+The estimate lists the saved expense categories and amounts it includes, identifies
+missing sold-item prices or ingredient costs, and links to the relevant correction
+screen. Ingredient-price links open and focus the selected price field. Unsaved expense
+edits are not described as included. A negative item contribution means estimated
+ingredient cost exceeds revenue; this can reflect recipe or cost data as well as price.
+
+Each sale snapshots the selling price, recipe quantities, ingredient prices and
+estimated ingredient cost per serving on first entry. Corrections keep those original
+cost snapshots, so later recipe or ingredient-price edits do not rewrite past estimates.
+Missing selling or ingredient costs are shown as incomplete, not treated as zero. Sales
+and optional sold-out flags never deduct stock and do not yet feed a model. No sales are
+seeded automatically.
+Saved dates can be reopened from the recent-record list or selected with the business
+date picker. Each date retains its version snapshots, editor, and timestamp. Earlier
+versions are inspectable and can be restored as a new version; this preserves the
+current record and every prior version, including that version’s saved price and cost
+assumptions. Stale restore requests are rejected. Historical estimates with missing
+prices, ingredient costs, or an unrecorded expense list remain unavailable and their
+causes are shown when the date is reopened.
 
 Schema migrations 3 and 4 add sales records, versioned history and demo provenance;
 migration 6 adds per-item selling-price snapshots, and migration 8 adds recipe-cost

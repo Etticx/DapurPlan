@@ -20,6 +20,7 @@ export function InventoryEditor({initialInventory,canManage}:{initialInventory:I
  const [error,setError]=useState("");
  const [message,setMessage]=useState("");
  const editorRef=useRef<HTMLElement>(null);
+ const ingredientPriceSetupRef=useRef<HTMLDetailsElement>(null);
  const editorOpen=form!==null;
  const editingBatchId=form?.id;
  const today=malaysiaDate();
@@ -32,6 +33,17 @@ export function InventoryEditor({initialInventory,canManage}:{initialInventory:I
    editorRef.current?.scrollIntoView({block:"start"});
   }
  },[editorOpen,editingBatchId]);
+
+ useEffect(()=>{
+  if(window.location.hash!=="#ingredient-price-setup")return;
+  const setup=ingredientPriceSetupRef.current;
+  if(!setup)return;
+  setup.open=true;
+  const ingredientId=new URLSearchParams(window.location.search).get("ingredient");
+  const target=ingredientId?document.getElementById(`price-${ingredientId}`):setup.querySelector("summary");
+  target?.scrollIntoView({block:"center"});
+  target?.focus({preventScroll:true});
+ },[]);
 
  function makeForm(batch?:Batch){
   const id=batch?.ingredientId||"rice";
@@ -186,7 +198,7 @@ export function InventoryEditor({initialInventory,canManage}:{initialInventory:I
    </form>
   </section>}
 
-  {canManage?<details className="group mt-6 overflow-hidden rounded-2xl border border-border bg-white">
+  {canManage?<details ref={ingredientPriceSetupRef} id="ingredient-price-setup" className="group mt-6 overflow-hidden rounded-2xl border border-border bg-white">
    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 outline-none focus-visible:ring-4 focus-visible:ring-primary/20 [&::-webkit-details-marker]:hidden">
     <span>
      <span className="block font-semibold">Ingredient price setup</span>

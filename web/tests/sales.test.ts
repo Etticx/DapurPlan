@@ -6,17 +6,61 @@ import {openInventoryStore} from "../src/lib/inventory-store";
 import {openRecipeStore} from "../src/lib/recipe-store";
 import {validateSales,validateExpenses,emptySalesDay} from "../src/lib/sales";
 import {addDays,malaysiaDate} from "../src/lib/inventory";
+import {calculateProfitTotals,calculateSaleFinancialTotals,calculateSaleLineFinancials} from "../src/lib/sales-financials";
+
+test("financial calculations use integer cents, sold servings and explicit unavailable states",()=>{
+ const lines=[
+  {menuId:"priced",quantity:3,unitPriceCents:2500,ingredientCostPerServingCents:2000},
+  {menuId:"negative",quantity:2,unitPriceCents:1000,ingredientCostPerServingCents:1500},
+  {menuId:"zero",quantity:0,unitPriceCents:null,ingredientCostPerServingCents:null},
+ ];
+ assert.deepEqual(calculateSaleLineFinancials(lines[0]),{menuId:"priced",revenueCents:7500,ingredientCostCents:6000,contributionCents:1500,contributionMarginPercent:20});
+ assert.deepEqual(calculateSaleLineFinancials(lines[1]),{menuId:"negative",revenueCents:2000,ingredientCostCents:3000,contributionCents:-1000,contributionMarginPercent:-50});
+ assert.deepEqual(calculateSaleLineFinancials(lines[2]),{menuId:"zero",revenueCents:0,ingredientCostCents:0,contributionCents:0,contributionMarginPercent:null});
+ assert.deepEqual(calculateSaleFinancialTotals(lines),{revenueCents:9500,ingredientCostCents:9000});
+ assert.deepEqual(calculateSaleFinancialTotals([{menuId:"missing-price",quantity:1,unitPriceCents:null,ingredientCostPerServingCents:0}]),{revenueCents:null,ingredientCostCents:0});
+ assert.deepEqual(calculateSaleFinancialTotals([{menuId:"missing-cost",quantity:1,unitPriceCents:0,ingredientCostPerServingCents:null}]),{revenueCents:0,ingredientCostCents:null});
+ assert.deepEqual(calculateSaleFinancialTotals([{menuId:"not-entered",quantity:null,unitPriceCents:null,ingredientCostPerServingCents:null}]),{revenueCents:null,ingredientCostCents:null});
+ const incomplete=calculateProfitTotals({date:"2026-01-01",revenueCents:9500,ingredientCostCents:9000,expensesCents:0,expensesRecorded:false,salesDays:1});
+ assert.equal(incomplete.grossProfitCents,500);assert.equal(incomplete.netProfitCents,null);assert.equal(incomplete.grossProfitMarginPercent,500/9500*100);
+ const complete=calculateProfitTotals({date:"2026-01-01",revenueCents:9500,ingredientCostCents:9000,expensesCents:1000,expensesRecorded:true,salesDays:1});
+ assert.equal(complete.netProfitCents,-500);assert.equal(complete.netProfitMarginPercent,-500/9500*100);
+ const noRevenue=calculateProfitTotals({date:"2026-01-01",revenueCents:0,ingredientCostCents:0,expensesCents:0,expensesRecorded:true,salesDays:1});
+ assert.equal(noRevenue.grossProfitMarginPercent,null);assert.equal(noRevenue.netProfitMarginPercent,null);
+});
 test("sales preserve blanks, persist corrections once per date and never change inventory",()=>{
  const dir=mkdtempSync(join(tmpdir(),"dapur-sales-"));const path=join(dir,"test.sqlite");const inventory=openInventoryStore(path);let store=openSalesStore(path);const raw=new Database(path);
  try{const stock=inventory.seed("owner");const date=malaysiaDate();const initial=store.day(date);assert.equal(initial.version,0);assert.ok(initial.lines.every(l=>l.quantity===null));
  const input={...initial,lines:initial.lines.map((l,i)=>({...l,quantity:i===0?40:i===1?0:null,soldOut:i===0}))};
  const saved=store.save(input,"owner");assert.equal(saved.day.version,1);assert.equal(saved.recent[0].entered,2);assert.equal(saved.recent[0].total,40);assert.equal(saved.day.lines[2].quantity,null);
- assert.throws(()=>store.save(input,"owner"));assert.throws(()=>store.save(saved.day,"visitor"));
+ assert.throws(()=>store.save(input,"owner"));assert.equal(store.history(date).length,1);assert.throws(()=>store.save(saved.day,"visitor"));
  const corrected=store.save({...saved.day,lines:saved.day.lines.map((l,i)=>i===0?{...l,quantity:45}:l)},"owner");assert.equal(corrected.recent.length,1);assert.equal(corrected.recent[0].total,45);assert.equal(store.history(date).length,2);
  assert.deepEqual(inventory.list(),stock);
  store.close();store=openSalesStore(path);assert.deepEqual(store.day(date),corrected.day);
  raw.exec("CREATE TRIGGER fail_sales_history BEFORE INSERT ON sales_history BEGIN SELECT RAISE(ABORT,'test failure'); END");assert.throws(()=>store.save({...corrected.day,lines:input.lines},"owner"));assert.deepEqual(store.day(date),corrected.day);assert.equal(store.history(date).length,2);
  }finally{raw.close();store.close();inventory.close();rmSync(dir,{recursive:true,force:true});}
+});
+test("restoring a sales version creates an auditable version and preserves its saved financial snapshots",()=>{
+ const dir=mkdtempSync(join(tmpdir(),"dapur-sales-restore-"));const path=join(dir,"test.sqlite");const inventory=openInventoryStore(path);let store=openSalesStore(path);
+ try{
+  inventory.seed("owner");
+  const date=malaysiaDate();const initial=store.day(date);
+  const first=store.save({...initial,lines:initial.lines.map((line,index)=>({...line,quantity:index===0?3:null}))},"owner");
+  const firstLine=first.day.lines[0];
+  const second=store.save({...first.day,lines:first.day.lines.map((line,index)=>index===0?{...line,quantity:8}:line)},"staff");
+  const restored=store.restore({date,expectedVersion:second.day.version,version:first.day.version},"staff");
+  assert.equal(restored.day.version,3);assert.equal(restored.day.lines[0].quantity,3);
+  assert.equal(restored.day.lines[0].unitPriceCents,firstLine.unitPriceCents);
+  assert.equal(restored.day.lines[0].ingredientCostPerServingCents,firstLine.ingredientCostPerServingCents);
+  assert.deepEqual(restored.day.lines[0].costSnapshot,firstLine.costSnapshot);
+  assert.deepEqual(restored.history.map(version=>version.version),[3,2,1]);
+  assert.equal(restored.history[0].restoredFromVersion,1);
+  assert.equal(restored.history[1].day.lines[0].quantity,8);
+  assert.equal(restored.history[0].changedBy,"staff");assert.ok(restored.history.every(version=>Number.isFinite(Date.parse(version.changedAt))));
+  assert.throws(()=>store.restore({date,expectedVersion:second.day.version,version:first.day.version},"owner"),/changed/i);
+  store.close();store=openSalesStore(path);
+  assert.equal(store.day(date).version,3);assert.equal(store.history(date)[2].day.lines[0].quantity,3);
+ }finally{store.close();inventory.close();rmSync(dir,{recursive:true,force:true});}
 });
 test("sales reject negative, fractional, unknown, missing, future and all-blank entries",()=>{
  const d=emptySalesDay(malaysiaDate());const good={...d,lines:d.lines.map((l,i)=>({...l,quantity:i===0?0:null}))};assert.equal(validateSales(good).lines[0].quantity,0);
@@ -55,13 +99,19 @@ test("daily profit snapshots recipe costs, includes expenses, and aggregates tre
   const recipe=recipes.list()[0];recipes.update(recipe.id,{...recipe,priceCents:3000,servings:2,lines:[{ingredientId:"rice",quantity:2,unit:"kg"}]},"owner");
   const previousDate=addDays(malaysiaDate(),-1);const today=malaysiaDate();
   const previous=emptySalesDay(previousDate);previous.lines[0].quantity=1;store.save(previous,"owner");
+  assert.equal(store.financial(previousDate).expensesRecorded,false);assert.equal(store.financial(previousDate).netProfitCents,null);
+  store.saveExpenses({date:previousDate,version:0,expenses:[]},"owner");
   const current=emptySalesDay(today);current.lines[0].quantity=3;const saved=store.save(current,"owner");
   assert.equal(saved.day.lines[0].ingredientCostPerServingCents,2000);
   assert.equal(saved.day.lines[0].costSnapshot?.ingredients[0].quantity,2);
+  const beforeExpenses=store.financial(today);assert.equal(beforeExpenses.expensesRecorded,false);assert.equal(beforeExpenses.netProfitCents,null);
+  const weekBeforeExpenses=store.trend("weekly",today).find(period=>period.date===addDays(today,-((new Date(today+"T00:00:00Z").getUTCDay()+6)%7)))!;
+  assert.equal(weekBeforeExpenses.expensesRecorded,false);assert.equal(weekBeforeExpenses.netProfitCents,null);
   const expenseSaved=store.saveExpenses({date:today,version:0,expenses:[{category:"Utilities",amountCents:1000,note:"Power"}]},"owner");
   assert.equal(expenseSaved.expenses[0].amountCents,1000);
   const daily=store.financial(today);
   assert.equal(daily.revenueCents,9000);assert.equal(daily.ingredientCostCents,6000);assert.equal(daily.grossProfitCents,3000);assert.equal(daily.expensesCents,1000);assert.equal(daily.netProfitCents,2000);
+  assert.equal(store.trend("weekly",today).find(period=>period.date===addDays(today,-((new Date(today+"T00:00:00Z").getUTCDay()+6)%7)))?.expensesRecorded,true);
   recipes.update(recipe.id,{...recipes.list()[0],priceCents:5000,servings:4,lines:[{ingredientId:"rice",quantity:4,unit:"kg"}]},"owner");
   const latestRice=inventory.list().batches.find(batch=>batch.ingredientId==="rice")!;
   inventory.savePrice({ingredientId:"rice",unit:"kg",costCents:4000,version:1},"owner");
