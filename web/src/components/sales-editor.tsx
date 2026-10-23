@@ -18,7 +18,7 @@ function lineIngredientCost(line:SaleLine,fallbackCosts?:SalesData["menuCosts"])
 }
 function initialExpenses(expenses:DailyExpense[]):ExpenseDraft[]{return expenses.map(expense=>({id:expense.id,category:expense.category,amount:(expense.amountCents/100).toFixed(2),note:expense.note}));}
 function summaryValue(value:number|null){return value===null?"Not available":money.format(value/100);}
-function formatMargin(value:number|null){return value===null?"Not available":`${value.toFixed(1)}%`;}
+function formatMargin(value:number|null|undefined){return typeof value!=="number"||!Number.isFinite(value)?"Not available":`${value.toFixed(1)}%`;}
 function shortDate(value:string){return new Date(`${value}T12:00:00+08:00`).toLocaleDateString("en-MY",{day:"numeric",month:"short",year:"numeric",timeZone:"Asia/Kuala_Lumpur"});}
 
 export function SalesEditor({initialData,canManage=false}:{initialData:SalesData;canManage?:boolean}){
@@ -320,6 +320,7 @@ export function SalesEditor({initialData,canManage=false}:{initialData:SalesData
     <div className="shrink-0 rounded-xl bg-background px-4 py-3 sm:text-right">
      <p className="text-xs text-muted-foreground">Estimated net profit</p>
      <p className="mt-1 text-xl font-semibold tabular-nums">{summaryValue(netProfit)}</p>
+     <p className="mt-2 text-xs leading-5 text-muted-foreground">Gross profit − other recorded expenses = estimated net profit</p>
     </div>
    </div>
    {missingFinancialInputs.length>0&&<div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4" role="status">
