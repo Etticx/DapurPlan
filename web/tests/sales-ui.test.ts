@@ -25,8 +25,9 @@ test("overview contains date-filtered accessible line and bar charts",()=>{
  assert.match(overviewSource,/Bar chart of revenue/);
  assert.match(overviewSource,/Bar chart of gross profit/);
  assert.doesNotMatch(overviewSource,/<(?:circle|rect)[^>]*>\s*<title>/);
- assert.match(overviewSource,/<g key=\{points\[index\]\.date\} aria-label=\{`\$\{points\[index\]\.date\}: \$\{point\.value\} servings`\}><title>/);
- assert.match(overviewSource,/<g key=\{point\.date\} aria-label=\{label\}><title>\{label\}<\/title><rect/);
+ assert.doesNotMatch(overviewSource,/<title>/);
+ assert.match(overviewSource,/<g key=\{points\[index\]\.date\} aria-label=\{`\$\{points\[index\]\.date\}: \$\{point\.value\} servings`\}><circle/);
+ assert.match(overviewSource,/<g key=\{point\.date\} aria-label=\{label\}><rect/);
  assert.doesNotMatch(overviewSource,/toLocaleDateString|Intl\.NumberFormat|endDate=malaysiaDate/);
  assert.match(overviewSource,/No saved sales records in this range/);
  assert.match(overviewSource,/incomplete records are shown as gaps/);

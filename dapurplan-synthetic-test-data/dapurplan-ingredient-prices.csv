@@ -1,0 +1,19 @@
+ingredient_id,ingredient_name,version,price_unit,price_quantity,cost_rm
+rice,Uncooked rice,2,kg,1,6.15
+chicken,Raw boneless chicken,1,kg,1,18.45
+cucumber,Cucumber,1,kg,1,4.10
+oil,Cooking oil,1,L,1,6.15
+soy,Soy sauce,1,L,1,8.20
+noodles,Fresh kuey teow noodles,1,kg,1,4.10
+egg,Eggs,1,pieces,30,13.84
+sprouts,Bean sprouts,1,kg,1,4.10
+coconut,Coconut milk,1,L,1,12.30
+sambal,Prepared sambal,1,kg,1,15.37
+peanuts,Peanuts,1,kg,1,10.25
+anchovies,Dried anchovies,1,kg,1,36.90
+coffee,Ground coffee,1,kg,1,30.75
+sugar,Sugar,1,kg,1,3.07
+water,Water (not stock-tracked),1,L,1,0.00
+ice,Ice,1,kg,1,0.61
+tea,Tea bags,1,pieces,100,12.30
+lemon,Lemons,1,pieces,1,1.54

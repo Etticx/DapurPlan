@@ -51,10 +51,9 @@ function ServingsLineChart({points}:{points:Point[]}){
  const ticks=[0,0.5,1];
  const labelIndices=new Set([0,Math.floor((points.length-1)/2),points.length-1]);
  return <svg className="h-auto w-full overflow-visible" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Line chart of servings sold. ${valid.length} complete daily totals.`}>
-  <title>Servings sold</title>
   {ticks.map(fraction=>{const y=top+chartHeight*(1-fraction);return <g key={fraction}><line x1={left} x2={width-right} y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="3 4"/><text x={left-8} y={y+4} textAnchor="end" fill="#64748b" fontSize="11">{Math.round(max*fraction)}</text></g>;})}
   <path d={path} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"/>
-  {coords.map((point,index)=>point.value===null?null:<g key={points[index].date} aria-label={`${points[index].date}: ${point.value} servings`}><title>{points[index].date}: {point.value} servings</title><circle cx={point.x} cy={point.y} r="4" fill="#fff" stroke="#2563eb" strokeWidth="2"/></g>)}
+  {coords.map((point,index)=>point.value===null?null:<g key={points[index].date} aria-label={`${points[index].date}: ${point.value} servings`}><circle cx={point.x} cy={point.y} r="4" fill="#fff" stroke="#2563eb" strokeWidth="2"/></g>)}
   {points.map((point,index)=>labelIndices.has(index)?<text key={point.date} x={coords[index].x} y={height-8} textAnchor={index===0?"start":index===points.length-1?"end":"middle"} fill="#64748b" fontSize="11">{point.label}</text>:null)}
  </svg>;
 }
@@ -69,14 +68,13 @@ function SalesBarChart({points,metric}:{points:Point[];metric:"revenue"|"grossPr
  const labelIndices=new Set([0,Math.floor((points.length-1)/2),points.length-1]);
  const ticks=[0,0.5,1];
  return <svg className="h-auto w-full overflow-visible" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${metric==="revenue"?"Bar chart of revenue":"Bar chart of gross profit"} in Malaysian Ringgit.`}>
-  <title>{metric==="revenue"?"Revenue":"Gross profit"}</title>
   {ticks.map(fraction=>{const amount=min+span*fraction;const y=top+chartHeight*(1-fraction);return <g key={fraction}><line x1={left} x2={width-right} y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="3 4"/><text x={left-8} y={y+4} textAnchor="end" fill="#64748b" fontSize="10">{compactCurrency(amount)}</text></g>;})}
   {metric==="grossProfit"&&<line x1={left} x2={width-right} y1={zeroY} y2={zeroY} stroke="#64748b" strokeWidth="1.5"/>}
   {points.map((point,index)=>{
    const value=point[metric];if(value===null)return null;
    const x=left+index*step+(step-barWidth)/2;const y=top+(max-value)/span*chartHeight;const barHeight=Math.abs(zeroY-y);
    const label=`${point.date}: ${exactCurrency(value)}`;
-   return <g key={point.date} aria-label={label}><title>{label}</title><rect x={x} y={Math.min(y,zeroY)} width={barWidth} height={Math.max(value===0?1:0,barHeight)} rx="3" fill={metric==="revenue"?"#2563eb":value<0?"#dc2626":"#0f766e"}/></g>;
+   return <g key={point.date} aria-label={label}><rect x={x} y={Math.min(y,zeroY)} width={barWidth} height={Math.max(value===0?1:0,barHeight)} rx="3" fill={metric==="revenue"?"#2563eb":value<0?"#dc2626":"#0f766e"}/></g>;
   })}
   {points.map((point,index)=>labelIndices.has(index)?<text key={point.date} x={left+index*step+step/2} y={height-8} textAnchor={index===0?"start":index===points.length-1?"end":"middle"} fill="#64748b" fontSize="11">{point.label}</text>:null)}
  </svg>;
