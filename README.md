@@ -22,7 +22,7 @@ DapurPlan helps small food businesses forecast daily servings, estimate ingredie
 | GitHub Repository | [Etticx/DapurPlan](https://github.com/Etticx/DapurPlan) |
 | Live Demo | Not deployed |
 | RunPod Endpoint | Not deployed; see the [CPU Pod guide](runpod/README.md) |
-| Slide Deck | To be provided |
+| Slide Deck | [DapurPlan SDC Hackathon 2026 Detailed Pitch](submission/DapurPlan_SDC2026_Pitch_Detailed.pptx) |
 | Demo Video | To be provided |
 
 ---
