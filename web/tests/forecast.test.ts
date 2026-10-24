@@ -26,3 +26,17 @@ test("saved forecasts persist and reject sales changed during prediction",()=>{
  const changed=sales.day(addDays(target,-1));sales.save({...changed,lines:changed.lines.map(l=>({...l,quantity:20}))},"owner");assert.equal(store.view().stale,true);assert.throws(()=>store.save(p,result,"owner"),/Sales changed/);
  }finally{sales.close();store.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+test("Runpod requests include the server key only when configured",async()=>{
+ const previous=process.env.FORECAST_API_KEY;
+ const predictions=["Chicken rice","Fried kuey teow with egg","Nasi lemak with egg","Kopi O ais","Iced lemon tea"].map(item=>({item,predicted_servings:12}));
+ try{
+  for(const key of ["local-test-only-key-12345678901234567890",undefined]){
+   if(key===undefined)delete process.env.FORECAST_API_KEY;else process.env.FORECAST_API_KEY=key;
+   await requestForecast([],"http://test",async(_url,options)=>{
+    assert.equal(new Headers(options?.headers).get("Authorization"),key?`Bearer ${key}`:null);
+    return Response.json({model_id:"a".repeat(64),synthetic_model:true,predictions});
+   });
+  }
+ }finally{if(previous===undefined)delete process.env.FORECAST_API_KEY;else process.env.FORECAST_API_KEY=previous;}
+});
