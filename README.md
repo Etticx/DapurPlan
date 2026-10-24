@@ -23,7 +23,7 @@ DapurPlan helps small food businesses forecast daily servings, estimate ingredie
 | Live Demo | [DapurPlan on Replit](https://dapurplan.replit.app) |
 | RunPod Endpoint | [Protected forecast service](https://jempwl1632kkc7-8000.proxy.runpod.net); requires a private bearer key. See the [CPU Pod guide](runpod/README.md). |
 | Slide Deck | [DapurPlan SDC Hackathon 2026 Detailed Pitch](submission/DapurPlan_SDC2026_Pitch_Detailed.pptx) |
-| Demo Video | To be provided |
+| Demo Video | https://youtu.be/7wzRdJ89PwA |
 
 ---
 
