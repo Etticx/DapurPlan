@@ -6,7 +6,7 @@ import {openRecipeStore} from "./recipe-store";
 import {openInventoryStore} from "./inventory-store";
 import {costRecipe,type RecipeCostSnapshot} from "./costing";
 import {addCents,calculateProfitTotals,calculateSaleFinancialTotals,type SaleFinancialInput} from "./sales-financials";
-import {SalesInputError,validateSales,validateExpenses,salesDate,emptySalesDay,type SalesDay,type SalesSummary,type SalesData,type SaleLine,type DailyExpense,type FinancialSummary,type SalesTrendPeriod,type SalesVersion} from "./sales";
+import {SalesInputError,validateSales,validateExpenses,salesDate,emptySalesDay,salesMenus,type SalesDay,type SalesSummary,type SalesData,type SaleLine,type DailyExpense,type FinancialSummary,type SalesTrendPeriod,type SalesVersion,type SalesOverviewPoint} from "./sales";
 import {addDays} from "./inventory";
 export class SalesConflictError extends Error {}
 export class ExpenseConflictError extends Error {}
@@ -55,6 +55,22 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
  function recent():SalesSummary[]{
   const dates=db.prepare("SELECT d.date,d.version,d.updated_at AS updatedAt,p.source_date AS sourceDate,COUNT(l.quantity) AS entered,COALESCE(SUM(l.quantity),0) AS total FROM sales_days d JOIN sales_lines l ON l.date=d.date LEFT JOIN sales_provenance p ON p.date=d.date GROUP BY d.date ORDER BY d.date DESC LIMIT 30").all() as (Omit<SalesSummary,keyof FinancialSummary|"updatedAt"|"sourceDate">&{date:string;version:number;updatedAt:string;sourceDate:string|null;entered:number;total:number})[];
   return dates.map(row=>({...row,...financial(row.date)}));
+ }
+ function overview(endDate:string,days=365):SalesOverviewPoint[]{
+  salesDate(endDate);
+  if(!Number.isSafeInteger(days)||days<1||days>366)throw new SalesInputError("Choose a sales overview range from 1 to 366 days.");
+  const firstDate=addDays(endDate,-(days-1));
+  const rows=db.prepare(`SELECT d.date,l.menu_id AS menuId,l.quantity,l.unit_price_cents AS unitPriceCents,l.ingredient_cost_per_serving_cents AS ingredientCostPerServingCents
+   FROM sales_days d LEFT JOIN sales_lines l ON l.date=d.date WHERE d.date BETWEEN ? AND ? ORDER BY d.date,l.menu_id`).all(firstDate,endDate) as (SaleFinancialInput&{date:string})[];
+  const byDate=new Map<string,SaleFinancialInput[]>();
+  for(const row of rows){const lines=byDate.get(row.date)??[];if(row.menuId!==null)lines.push(row);byDate.set(row.date,lines);}
+  return [...byDate].map(([date,lines])=>{
+   const totals=calculateSaleFinancialTotals(lines);
+   const financial=calculateProfitTotals({date,revenueCents:totals.revenueCents,ingredientCostCents:totals.ingredientCostCents,expensesCents:0,expensesRecorded:true,salesDays:1});
+   const servingsComplete=lines.length===salesMenus.length&&lines.every(line=>line.quantity!==null);
+   const servings=servingsComplete?lines.reduce((sum,line)=>sum+(line.quantity??0),0):null;
+   return {date,servingsSold:servings,revenueCents:financial.revenueCents,grossProfitCents:financial.grossProfitCents};
+  });
  }
  function trend(period:SalesTrendPeriod,endDate:string):FinancialSummary[]{
   salesDate(endDate);
@@ -211,5 +227,5 @@ export function openSalesStore(filename=process.env.DAPURPLAN_DB_PATH||resolve(p
   }
   return {imported,skipped,manualEntryDate:demoSales.days[6].date};
  }).immediate();}
- return {day,recent,menuPrices,menuCosts,expenseState,financial,trend,getData,spreadsheetSales,spreadsheetExpenses,save,restore,fillMissingFinancials,saveExpenses,history,importDemo,close:()=>{db.close();recipes.close();inventory.close();}};
+ return {day,recent,overview,menuPrices,menuCosts,expenseState,financial,trend,getData,spreadsheetSales,spreadsheetExpenses,save,restore,fillMissingFinancials,saveExpenses,history,importDemo,close:()=>{db.close();recipes.close();inventory.close();}};
 }

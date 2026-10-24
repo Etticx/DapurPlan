@@ -6,12 +6,26 @@ import {join} from "node:path";
 const source=readFileSync(join(import.meta.dirname,"../src/components/sales-editor.tsx"),"utf8");
 const recipesSource=readFileSync(join(import.meta.dirname,"../src/components/recipe-editor.tsx"),"utf8");
 const inventorySource=readFileSync(join(import.meta.dirname,"../src/components/inventory-editor.tsx"),"utf8");
+const overviewSource=readFileSync(join(import.meta.dirname,"../src/components/sales-overview-charts.tsx"),"utf8");
+const homeSource=readFileSync(join(import.meta.dirname,"../src/app/home/page.tsx"),"utf8");
 
 test("daily sales screen leads with the core entry and saves no date-specific demo data",()=>{
  assert.match(source,/<h1 className="text-3xl font-semibold tracking-tight">Daily sales<\/h1>/);
  assert.match(source,/draft\.date===malaysiaDate\(\)&&!draft\.version\?"Enter today’s sales"/);
  assert.match(source,/Save sales/);
  assert.doesNotMatch(source,/markDemo|syntheticDemo|Agreed demo/);
+});
+
+test("overview contains date-filtered accessible line and bar charts",()=>{
+ assert.match(homeSource,/<SalesOverviewCharts data=\{salesOverview\} endDate=\{malaysiaDate\(\)\}\/>/);
+ assert.match(overviewSource,/<legend className="sr-only">Filter chart date range<\/legend>/);
+ assert.match(overviewSource,/7 days/);assert.match(overviewSource,/30 days/);assert.match(overviewSource,/12 months/);
+ assert.match(overviewSource,/aria-pressed=\{range===value\}/);
+ assert.match(overviewSource,/Line chart of servings sold/);
+ assert.match(overviewSource,/Bar chart of revenue/);
+ assert.match(overviewSource,/Bar chart of gross profit/);
+ assert.match(overviewSource,/No saved sales records in this range/);
+ assert.match(overviewSource,/incomplete records are shown as gaps/);
 });
 
 test("sales entry exposes business date, a scan-friendly table, validation and explicit actions",()=>{

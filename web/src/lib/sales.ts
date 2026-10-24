@@ -9,6 +9,7 @@ export type DailyExpense={id:string;category:string;amountCents:number;note:stri
 export type SalesTrendPeriod="daily"|"weekly"|"monthly";
 export type FinancialSummary={date:string;revenueCents:number|null;ingredientCostCents:number|null;expensesCents:number;expensesRecorded:boolean;grossProfitCents:number|null;netProfitCents:number|null;grossProfitMarginPercent:number|null;netProfitMarginPercent:number|null;salesDays:number};
 export type SalesSummary=FinancialSummary&{sourceDate?:string|null;version:number;entered:number;total:number;updatedAt:string};
+export type SalesOverviewPoint={date:string;servingsSold:number|null;revenueCents:number|null;grossProfitCents:number|null};
 export type SalesData={day:SalesDay;previousDay:SalesDay;recent:SalesSummary[];history:SalesVersion[];menuPrices:Record<string,number|null>;menuCosts:Record<string,RecipeCostSnapshot>;expenses:DailyExpense[];expenseVersion:number;trend:FinancialSummary[];trendPeriod:SalesTrendPeriod};
 export class SalesInputError extends Error {}
 export function salesDate(value:unknown){if(!validDate(value)||value>malaysiaDate())throw new SalesInputError("Choose today or an earlier valid date.");return value;}

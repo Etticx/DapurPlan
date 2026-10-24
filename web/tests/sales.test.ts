@@ -152,6 +152,25 @@ test("daily profit snapshots recipe costs, includes expenses, and aggregates tre
  }finally{inventory.close();recipes.close();store.close();rmSync(dir,{recursive:true,force:true});}
 });
 
+test("overview chart data uses saved snapshots and marks partial servings or missing costs unavailable",()=>{
+ const dir=mkdtempSync(join(tmpdir(),"dapur-overview-"));const path=join(dir,"test.sqlite");const store=openSalesStore(path);const recipes=openRecipeStore(path);const inventory=openInventoryStore(path);
+ try{
+  const menu=recipes.list()[0];
+  recipes.update(menu.id,{...menu,priceCents:2500,servings:1,lines:[{ingredientId:"rice",quantity:100,unit:"g"}]},"owner");
+  inventory.savePrice({ingredientId:"rice",unit:"kg",costCents:1000,version:0},"owner");
+  const date=malaysiaDate();const complete=emptySalesDay(date);
+  complete.lines.forEach((line,index)=>{line.quantity=index===0?3:0;});
+  store.save(complete,"owner");
+  const points=store.overview(date,7);
+  assert.deepEqual(points,[{date,servingsSold:3,revenueCents:7500,grossProfitCents:7200}]);
+  const partialDate=addDays(date,-1);const partial=emptySalesDay(partialDate);partial.lines[0].quantity=1;
+  store.save(partial,"owner");
+  const historical=store.overview(date,7).find(point=>point.date===partialDate);
+  assert.deepEqual(historical,{date:partialDate,servingsSold:null,revenueCents:2500,grossProfitCents:2400});
+  const before=store.overview(addDays(date,-8),7);assert.deepEqual(before,[]);
+ }finally{inventory.close();recipes.close();store.close();rmSync(dir,{recursive:true,force:true});}
+});
+
 test("daily expenses can be added, corrected and removed with versioned history",()=>{
  const dir=mkdtempSync(join(tmpdir(),"dapur-expense-lifecycle-"));const path=join(dir,"test.sqlite");const store=openSalesStore(path);const raw=new Database(path);
  try{

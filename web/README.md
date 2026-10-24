@@ -165,6 +165,12 @@ screen. Ingredient-price links open and focus the selected price field. Unsaved 
 edits are not described as included. A negative item contribution means estimated
 ingredient cost exceeds revenue; this can reflect recipe or cost data as well as price.
 
+The Overview includes daily charts for servings sold, revenue and gross profit, with
+7-day, 30-day and 12-month filters (the 12-month view groups by month). Chart revenue
+and gross profit use saved price/cost snapshots. Incomplete financial values and
+incomplete servings appear as gaps rather than being presented as zero; dates without
+sales records are not treated as no-sales days.
+
 Each sale snapshots the selling price, recipe quantities, ingredient prices and
 estimated ingredient cost per serving on first entry. Corrections keep those original
 cost snapshots, so later recipe or ingredient-price edits do not rewrite past estimates.
