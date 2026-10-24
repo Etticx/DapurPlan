@@ -7,7 +7,7 @@ import {Button} from "@/components/ui/button";
 type DataType="sales"|"expenses"|"inventory"|"recipes"|"ingredient-prices"|"planning";
 type ImportResult={imported:number;errors:string[]};
 const sections:{type:DataType;title:string;description:string;exportLabel:string;editable:boolean;access:string;tip:string}[]=[
- {type:"sales",title:"Daily sales",description:"One row per menu item and date. Keep all five menu rows for each date together when editing.",exportLabel:"Download sales CSV",editable:true,access:"Owners and staff",tip:"Leave servings blank when that menu was not entered; use 0 for confirmed zero sales. sold_out accepts true or false. Older files with a stable version per menu are supported; download a current CSV before editing to retain date-level conflict checks."},
+ {type:"sales",title:"Daily sales",description:"One row per menu item and date. Keep all five menu rows for each date together when editing.",exportLabel:"Download sales CSV",editable:true,access:"Owners and staff",tip:"Leave servings blank when that menu was not entered; use 0 for confirmed zero sales. sold_out accepts true or false."},
  {type:"expenses",title:"Daily expenses",description:"Edit the complete expense list for each date. Import replaces that date’s list.",exportLabel:"Download expenses CSV",editable:true,access:"Owners and staff",tip:"Add rows to add expenses. To remove all expenses for a date, replace its rows with one row whose operation is clear-date and keep the date’s version."},
  {type:"inventory",title:"Inventory batches",description:"Each row is one batch. Existing batch IDs update that batch; blank IDs add a new batch.",exportLabel:"Download inventory CSV",editable:true,access:"Owners and staff can add; owners can correct",tip:"Do not remove rows to delete stock. Set quantity to 0 to mark a batch exhausted. Stock units and purchase pack units must match the ingredient."},
  {type:"ingredient-prices",title:"Ingredient prices",description:"Owner-managed recipe cost inputs, in RM per displayed unit.",exportLabel:"Download ingredient prices CSV",editable:true,access:"Owners only",tip:"Keep the ingredient ID, unit, quantity, and version columns. Leave cost_rm blank to clear a price."},
@@ -58,8 +58,8 @@ export function SpreadsheetEditor({canManage}:{canManage:boolean}){
     <div className="mt-0.5 text-blue-700"><Info size={19} aria-hidden="true"/></div>
     <div className="text-sm leading-6 text-secondary-foreground">
      <p className="font-semibold text-foreground">CSV exchange, not live sync</p>
-     <p className="mt-1">This first version uses separate CSV files, not a continuously connected workbook. Download the latest file before editing; import checks record versions and rejects stale changes instead of silently overwriting newer DapurPlan data.</p>
-     <p className="mt-1 text-xs">Keep the ID and version columns intact. Import only changed files. Some rows can save while other rows fail; every failure is reported with a row number. Export a fresh file before resolving a conflict.</p>
+     <p className="mt-1">This first version uses separate CSV files, not a continuously connected workbook. Imports apply the CSV values using the latest database versions, so older version numbers do not block a valid import.</p>
+     <p className="mt-1 text-xs">CSV values replace newer app values for matching records. Keep IDs intact, and review the CSV carefully before importing. Invalid data and permission errors are still reported by row.</p>
     </div>
    </div>
   </section>

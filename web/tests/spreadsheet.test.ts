@@ -53,7 +53,7 @@ test("spreadsheet upload bodies are size-limited before parsing",async()=>{
  assert.deepEqual(await readBoundedBody(accepted,4),bytes.subarray(0,4));
 });
 
-test("reimporting an unchanged sales CSV is idempotent and does not alter inventory",()=>{
+test("sales CSV reimport is idempotent and changed stale data overwrites using the current version",()=>{
  const dir=mkdtempSync(join(tmpdir(),"dapur-sales-csv-"));const path=join(dir,"test.sqlite");
  const sales=openSalesStore(path);const inventory=openInventoryStore(path);
  try{
@@ -67,13 +67,13 @@ test("reimporting an unchanged sales CSV is idempotent and does not alter invent
   assert.equal(sales.history(date).length,1);
   const modifiedRows=rows.map(row=>({...row,servings:row.menu_id===salesMenus[0].id?"4":row.servings}));
   const stale=importSalesRows(modifiedRows,"owner",sales);
-  assert.equal(stale.imported,0);assert.equal(stale.errors.length,salesMenus.length);
-  assert.equal(sales.day(date).version,1);assert.equal(sales.day(date).lines[0].quantity,2);
-  assert.equal(sales.history(date).length,1);assert.deepEqual(inventory.list(),inventoryBefore);
+  assert.deepEqual(stale,{imported:salesMenus.length,errors:[]});
+  assert.equal(sales.day(date).version,2);assert.equal(sales.day(date).lines[0].quantity,4);
+  assert.equal(sales.history(date).length,2);assert.deepEqual(inventory.list(),inventoryBefore);
  }finally{sales.close();inventory.close();rmSync(dir,{recursive:true,force:true});}
 });
 
-test("sales import accepts legacy per-menu versions without weakening current version conflicts",()=>{
+test("sales import applies stale and per-menu versions using the current date version",()=>{
  const dir=mkdtempSync(join(tmpdir(),"dapur-sales-legacy-csv-"));const path=join(dir,"test.sqlite");
  const sales=openSalesStore(path);
  try{
@@ -85,14 +85,11 @@ test("sales import accepts legacy per-menu versions without weakening current ve
   assert.equal(sales.day("2025-10-01").version,1);
   assert.equal(sales.day("2025-10-02").version,1);
 
-  const currentRows=parseCsv([
-   "date,version,menu_id,servings,sold_out",
-   ...["2025-10-03","2025-10-04"].flatMap((date,dateIndex)=>salesMenus.map((menu,index)=>`${date},${dateIndex===1&&index===0?1:0},${menu.id},${30+index},false`)),
-  ].join("\n")).rows;
-  const result=importSalesRows(currentRows,"owner",sales);
-  assert.equal(result.imported,salesMenus.length);
-  assert.ok(result.errors.length>0);
-  assert.equal(sales.day("2025-10-03").version,1);
-  assert.equal(sales.day("2025-10-04").version,0);
+  const staleRows=legacyRows.filter(row=>row.date==="2025-10-01");
+  sales.save({date:"2025-10-01",version:1,lines:salesMenus.map((menu,index)=>({menuId:menu.id,quantity:40+index,soldOut:false}))},"owner");
+  const result=importSalesRows(staleRows,"owner",sales);
+  assert.deepEqual(result,{imported:salesMenus.length,errors:[]});
+  assert.equal(sales.day("2025-10-01").version,3);
+  assert.equal(sales.day("2025-10-01").lines[0].quantity,20);
  }finally{sales.close();rmSync(dir,{recursive:true,force:true});}
 });

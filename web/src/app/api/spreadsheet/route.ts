@@ -161,14 +161,13 @@ export async function POST(request:Request){
    const result=importSalesRows(parsed.rows,session.username,sales);
    imported+=result.imported;errors.push(...result.errors);
   }else if(type==="expenses"){
-   const groups=new Map<string,{version:number;rows:{row:number;data:typeof parsed.rows[number]}[]}>();
+   const groups=new Map<string,{rows:{row:number;data:typeof parsed.rows[number]}[]}>();
    parsed.rows.forEach((data,index)=>{
     const row=index+2;
     try{
-     const date=salesDate(data.date);const version=csvInteger(data.version,`Row ${row} version`,{max:1_000_000});
+     const date=salesDate(data.date);csvInteger(data.version,`Row ${row} version`,{max:1_000_000});
      const current=groups.get(date);
-     if(current&&current.version!==version)throw new CsvInputError("All rows for an expense date must use the same version.");
-     if(current)current.rows.push({row,data});else groups.set(date,{version:version!,rows:[{row,data}]});
+     if(current)current.rows.push({row,data});else groups.set(date,{rows:[{row,data}]});
     }catch(error){fail(row,error);}
    });
    for(const [date,group] of groups){
@@ -176,7 +175,9 @@ export async function POST(request:Request){
      const clears=group.rows.filter(item=>item.data.operation==="clear-date");
      if(clears.length){
       if(clears.length!==group.rows.length||group.rows.length!==1)throw new CsvInputError("Use one clear-date row by itself for a date.");
-      sales.saveExpenses({date,version:group.version,expenses:[]},session.username);imported++;
+      const current=sales.expenseState(date);
+      if(current.expenses.length===0){imported++;continue;}
+      sales.saveExpenses({date,version:current.expenseVersion,expenses:[]},session.username);imported++;
      }else{
       const expenses=group.rows.flatMap(({data,row})=>{
        if(data.operation!=="upsert")throw new CsvInputError(`Row ${row} operation must be upsert or clear-date.`);
@@ -187,38 +188,59 @@ export async function POST(request:Request){
       });
       if(expenses.length===0)continue;
       const current=sales.expenseState(date);
-      const unchanged=current.expenseVersion===group.version&&expenses.length===current.expenses.length&&expenses.every((expense,index)=>{
+      const unchanged=expenses.length===current.expenses.length&&expenses.every((expense,index)=>{
        const existing=current.expenses[index];
        return existing?.category===expense.category&&existing.amountCents===expense.amountCents&&existing.note===expense.note;
       });
       if(unchanged){imported+=group.rows.length;continue;}
-      sales.saveExpenses({date,version:group.version,expenses},session.username);imported+=group.rows.length;
+      sales.saveExpenses({date,version:current.expenseVersion,expenses},session.username);imported+=group.rows.length;
      }
     }catch(error){for(const item of group.rows)fail(item.row,error);}
    }
   }else if(type==="inventory"){
    const inventory=getInventoryStore();
+   const claimedBatchIds=new Set<string>();
+   const batchIdsInFile=new Set(parsed.rows.map(data=>data.batch_id).filter(Boolean));
    for(const [index,data] of parsed.rows.entries()){
     const row=index+2;
     try{
      if(!data.batch_id&&data.quantity==="")continue;
      if(data.quantity==="")throw new CsvInputError(`Row ${row} needs a quantity for an existing batch.`);
      const id=data.batch_id||undefined;
-     const version=id?csvInteger(data.version,`Row ${row} version`,{min:1,max:1_000_000}):undefined;
+     if(id)csvInteger(data.version,`Row ${row} version`,{min:1,max:1_000_000});
      const ingredientId=data.ingredient_id as IngredientId;
      const quantity=csvDecimal(data.quantity,`Row ${row} quantity`,{max:1_000_000_000});
      const packQuantity=csvDecimal(data.pack_quantity,`Row ${row} pack_quantity`,{min:0.001,max:1_000_000_000});
      const packCostCents=data.pack_cost_cents===""?undefined:csvInteger(data.pack_cost_cents,`Row ${row} pack_cost_cents`,{max:100_000_000});
-     const input={id,version,ingredientId,quantity,unit:data.unit as Unit,countDate:data.count_date,expiryDate:data.expiry_date||null,
+     const stock=inventory.list();
+     const previousBatchIds=new Set(stock.batches.map(batch=>batch.id));
+     const existing=id?stock.batches.find(batch=>batch.id===id):undefined;
+     const current=existing?.ingredientId===ingredientId?existing:undefined;
+     const pack=stock.packs.find(item=>item.ingredientId===ingredientId);
+     const samePack=(candidate:{quantity:number;unit:string;label:string;costCents?:number|null}|undefined)=>
+      !!candidate&&candidate.quantity===packQuantity&&candidate.unit===data.pack_unit&&candidate.label===data.pack_label&&
+       (packCostCents===undefined||(candidate.costCents??null)===packCostCents);
+     if(!current){
+      const duplicate=stock.batches.find(batch=>{
+       if(claimedBatchIds.has(batch.id)||(batchIdsInFile.has(batch.id)&&batch.id!==id))return false;
+       if(batch.ingredientId!==ingredientId||batch.quantity!==quantity||batch.unit!==data.unit||batch.countDate!==data.count_date||batch.expiryDate!==(data.expiry_date||null))return false;
+       return samePack(pack);
+      });
+      if(duplicate){claimedBatchIds.add(duplicate.id);imported++;continue;}
+     }
+     const input={id:current?id:undefined,version:current?.version,ingredientId,quantity,unit:data.unit as Unit,countDate:data.count_date,expiryDate:data.expiry_date||null,
       packQuantity,packUnit:data.pack_unit as Unit,packLabel:data.pack_label,packCostCents};
-     if(id){
-      const stock=inventory.list();const current=stock.batches.find(batch=>batch.id===id);
-      const pack=stock.packs.find(item=>item.ingredientId===ingredientId);
-      const unchanged=!!current&&!!pack&&current.version===version&&current.ingredientId===ingredientId&&current.quantity===quantity&&current.unit===input.unit&&current.countDate===input.countDate&&current.expiryDate===input.expiryDate&&
+     if(current){
+      claimedBatchIds.add(current.id);
+      const unchanged=!!pack&&current.ingredientId===ingredientId&&current.quantity===quantity&&current.unit===input.unit&&current.countDate===input.countDate&&current.expiryDate===input.expiryDate&&
        pack.quantity===packQuantity&&pack.unit===input.packUnit&&pack.label===input.packLabel&&(packCostCents===undefined||(pack.costCents??null)===packCostCents);
       if(unchanged){imported++;continue;}
      }
-     inventory.save(input,session.username);
+     const savedStock=inventory.save(input,session.username);
+     if(!current){
+      const saved=savedStock.batches.find(batch=>!previousBatchIds.has(batch.id)&&batch.ingredientId===ingredientId&&batch.quantity===quantity&&batch.unit===data.unit&&batch.countDate===data.count_date&&batch.expiryDate===(data.expiry_date||null)&&!claimedBatchIds.has(batch.id));
+      if(saved)claimedBatchIds.add(saved.id);
+     }
      imported++;
     }catch(error){fail(row,error);}
    }
@@ -229,26 +251,26 @@ export async function POST(request:Request){
     try{
      const costCents=csvMoneyCents(data.cost_rm,`Row ${row} cost_rm`,{blank:true});
      const quantity=csvDecimal(data.price_quantity,`Row ${row} price_quantity`,{min:0.001});
-     const version=csvInteger(data.version,`Row ${row} version`,{max:1_000_000});
+     csvInteger(data.version,`Row ${row} version`,{max:1_000_000});
      const current=getInventoryStore().list().prices?.find(price=>price.ingredientId===data.ingredient_id);
-     if(current&&current.version===version&&current.unit===data.price_unit&&current.quantity===quantity&&current.costCents===costCents){imported++;continue;}
-     if(!current&&version===0&&costCents===null){imported++;continue;}
-     inventory.savePrice({ingredientId:data.ingredient_id,unit:data.price_unit,quantity,costCents,version},session.username,session.role);
+     if(current&&current.unit===data.price_unit&&current.quantity===quantity&&current.costCents===costCents){imported++;continue;}
+     if(!current&&costCents===null){imported++;continue;}
+     inventory.savePrice({ingredientId:data.ingredient_id,unit:data.price_unit,quantity,costCents,version:current?.version??0},session.username,session.role);
      imported++;
     }catch(error){fail(row,error);}
    }
   }else if(type==="recipes"){
    const recipes=getRecipeStore();
-   const groups=new Map<string,{version:number;servings:number;priceCents:number|null;rows:{row:number;data:typeof parsed.rows[number]}[]}>();
+   const groups=new Map<string,{servings:number;priceCents:number|null;rows:{row:number;data:typeof parsed.rows[number]}[]}>();
    parsed.rows.forEach((data,index)=>{
     const row=index+2;
     try{
-     const version=csvInteger(data.version,`Row ${row} version`,{min:1,max:1_000_000});
+     csvInteger(data.version,`Row ${row} version`,{min:1,max:1_000_000});
      const servings=csvInteger(data.batch_servings,`Row ${row} batch_servings`,{min:1,max:10_000});
      const priceCents=csvMoneyCents(data.menu_price_rm,`Row ${row} menu_price_rm`,{blank:true});
      const current=groups.get(data.menu_id);
-     if(current&&(current.version!==version||current.servings!==servings||current.priceCents!==priceCents))throw new CsvInputError("Recipe metadata must match across its ingredient rows.");
-     if(current)current.rows.push({row,data});else groups.set(data.menu_id,{version:version!,servings:servings!,priceCents,rows:[{row,data}]});
+     if(current&&(current.servings!==servings||current.priceCents!==priceCents))throw new CsvInputError("Recipe metadata must match across its ingredient rows.");
+     if(current)current.rows.push({row,data});else groups.set(data.menu_id,{servings:servings!,priceCents,rows:[{row,data}]});
     }catch(error){fail(row,error);}
    });
    for(const [id,group] of groups){
@@ -258,10 +280,11 @@ export async function POST(request:Request){
       unit:data.ingredient_unit as Unit,
      }));
      const current=recipes.list().find(recipe=>recipe.id===id);
-     const unchanged=current?.version===group.version&&current.servings===group.servings&&current.priceCents===group.priceCents&&current.lines.length===lines.length&&
+     const unchanged=current?.servings===group.servings&&current.priceCents===group.priceCents&&current.lines.length===lines.length&&
       lines.every(line=>current.lines.some(existing=>existing.ingredientId===line.ingredientId&&existing.quantity===line.quantity&&existing.unit===line.unit));
      if(unchanged){imported+=group.rows.length;continue;}
-     recipes.update(id,{version:group.version,servings:group.servings,priceCents:group.priceCents,lines},session.username);
+     if(!current)throw new RecipeNotFoundError("Recipe not found.");
+     recipes.update(id,{version:current.version,servings:group.servings,priceCents:group.priceCents,lines},session.username);
      imported+=group.rows.length;
     }catch(error){for(const item of group.rows)fail(item.row,error);}
    }

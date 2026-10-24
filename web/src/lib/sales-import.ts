@@ -7,34 +7,16 @@ type SalesImportStore={
  save:(value:unknown,actor:string)=>unknown;
 };
 
-function isLegacyMenuVersionCsv(rows:CsvRow[]){
- if(rows.length<salesMenus.length*2)return false;
- const versionsByMenu=new Map<string,string>();
- const versionsByDate=new Map<string,Set<string>>();
- for(const data of rows){
-  if(!salesMenus.some(menu=>menu.id===data.menu_id)||!/^\d+$/.test(data.version))return false;
-  const version=String(Number(data.version));
-  const previous=versionsByMenu.get(data.menu_id);
-  if(previous!==undefined&&previous!==version)return false;
-  versionsByMenu.set(data.menu_id,version);
-  const versions=versionsByDate.get(data.date)??new Set<string>();
-  versions.add(version);versionsByDate.set(data.date,versions);
- }
- return versionsByMenu.size===salesMenus.length&&versionsByDate.size>1&&[...versionsByDate.values()].some(versions=>versions.size>1);
-}
-
 export function importSalesRows(rows:CsvRow[],actor:string,sales:SalesImportStore){
  const errors:string[]=[];let imported=0;
  const fail=(row:number,error:unknown)=>errors.push(`Row ${row}: ${error instanceof Error?error.message:"Could not import this row."}`);
- const legacyMenuVersions=isLegacyMenuVersionCsv(rows);
- const groups=new Map<string,{version:number;rows:{row:number;data:CsvRow}[]}>();
+ const groups=new Map<string,{rows:{row:number;data:CsvRow}[]}>();
  rows.forEach((data,index)=>{
   const row=index+2;
   try{
-   const date=salesDate(data.date);const version=csvInteger(data.version,`Row ${row} version`,{max:1_000_000});
+   const date=salesDate(data.date);csvInteger(data.version,`Row ${row} version`,{max:1_000_000});
    const current=groups.get(date);
-   if(current&&current.version!==version&&!legacyMenuVersions)throw new CsvInputError("All rows for a sales date must use the same version.");
-   if(current)current.rows.push({row,data});else groups.set(date,{version:version!,rows:[{row,data}]});
+   if(current)current.rows.push({row,data});else groups.set(date,{rows:[{row,data}]});
   }catch(error){fail(row,error);}
  });
  for(const [date,group] of groups){
@@ -49,13 +31,12 @@ export function importSalesRows(rows:CsvRow[],actor:string,sales:SalesImportStor
    }));
    if(lines.every(line=>line.quantity===null))continue;
    const current=sales.day(date);
-   const version=legacyMenuVersions?current.version:group.version;
    const unchanged=lines.every(line=>{
     const existing=current.lines.find(item=>item.menuId===line.menuId);
     return existing?.quantity===line.quantity&&existing.soldOut===line.soldOut;
    });
    if(unchanged){imported+=groupRows.length;continue;}
-   sales.save({date,version,lines},actor);imported+=groupRows.length;
+   sales.save({date,version:current.version,lines},actor);imported+=groupRows.length;
   }catch(error){for(const item of groupRows)fail(item.row,error);}
  }
  return {imported,errors};
