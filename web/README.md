@@ -192,6 +192,9 @@ Partial days are visibly marked and must not be treated as complete training dat
 Use the date picker for older records. Run `npm run test:sales` to verify validation,
 price/cost snapshots, expenses, profit aggregation, trends, correction history,
 rollback and unchanged inventory.
+Run `npm run test:production-readiness` for the sales calculations, entry UI and
+spreadsheet import regressions plus a TypeScript check. Production build validation is
+available through `npm run build`.
 
 
 ### Ingredient prices
@@ -229,6 +232,10 @@ rejected with row-level errors instead of overwriting newer edits. Imports save 
 record group, not as one all-or-nothing file: successful groups remain saved if other
 groups fail. Review the result, download a fresh CSV, and resolve stale rows before
 trying again.
+An unchanged sales date is treated as a no-op even when the CSV version is stale,
+which makes repeated upload of the same sales file safe; changed stale sales are
+rejected. Inventory rows with a batch ID update that batch, while rows without an ID
+intentionally add new stock batches and should not be replayed as new-stock entries.
 
 Daily sales CSVs contain all five menu rows per saved date; blank servings mean not
 entered and `0` means confirmed zero. Expense CSV import replaces the complete list

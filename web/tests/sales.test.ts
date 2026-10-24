@@ -7,6 +7,7 @@ import {openRecipeStore} from "../src/lib/recipe-store";
 import {validateSales,validateExpenses,emptySalesDay,salesMenus} from "../src/lib/sales";
 import {addDays,malaysiaDate} from "../src/lib/inventory";
 import {calculateProfitTotals,calculateSaleFinancialTotals,calculateSaleLineFinancials} from "../src/lib/sales-financials";
+import {costRecipe} from "../src/lib/costing";
 
 test("financial calculations use integer cents, sold servings and explicit unavailable states",()=>{
  const lines=[
@@ -17,6 +18,7 @@ test("financial calculations use integer cents, sold servings and explicit unava
  assert.deepEqual(calculateSaleLineFinancials(lines[0]),{menuId:"priced",revenueCents:7500,ingredientCostCents:6000,contributionCents:1500,contributionMarginPercent:20});
  assert.deepEqual(calculateSaleLineFinancials(lines[1]),{menuId:"negative",revenueCents:2000,ingredientCostCents:3000,contributionCents:-1000,contributionMarginPercent:-50});
  assert.deepEqual(calculateSaleLineFinancials(lines[2]),{menuId:"zero",revenueCents:0,ingredientCostCents:0,contributionCents:0,contributionMarginPercent:null});
+ assert.deepEqual(calculateSaleLineFinancials({menuId:"free",quantity:4,unitPriceCents:0,ingredientCostPerServingCents:0}),{menuId:"free",revenueCents:0,ingredientCostCents:0,contributionCents:0,contributionMarginPercent:null});
  assert.deepEqual(calculateSaleFinancialTotals(lines),{revenueCents:9500,ingredientCostCents:9000});
  assert.deepEqual(calculateSaleFinancialTotals([{menuId:"missing-price",quantity:1,unitPriceCents:null,ingredientCostPerServingCents:0}]),{revenueCents:null,ingredientCostCents:0});
  assert.deepEqual(calculateSaleFinancialTotals([{menuId:"missing-cost",quantity:1,unitPriceCents:0,ingredientCostPerServingCents:null}]),{revenueCents:0,ingredientCostCents:null});
@@ -29,6 +31,22 @@ test("financial calculations use integer cents, sold servings and explicit unava
  assert.equal(noRevenue.grossProfitMarginPercent,null);assert.equal(noRevenue.netProfitMarginPercent,null);
  const overflow=calculateProfitTotals({date:"2026-01-01",revenueCents:0,ingredientCostCents:Number.MAX_SAFE_INTEGER,expensesCents:Number.MAX_SAFE_INTEGER,expensesRecorded:true,salesDays:1});
  assert.equal(overflow.grossProfitCents,-Number.MAX_SAFE_INTEGER);assert.equal(overflow.netProfitCents,null);
+});
+test("recipe costing rounds to whole sen and keeps partial ingredient costs unavailable",()=>{
+ const recipe={id:"test",name:"Rounding test",category:"Food" as const,version:1,servings:2,lines:[
+  {ingredientId:"rice" as const,quantity:5,unit:"g" as const},
+  {ingredientId:"oil" as const,quantity:10,unit:"ml" as const},
+ ]};
+ const prices=[
+  {ingredientId:"rice" as const,unit:"kg" as const,quantity:1,costCents:100,version:1},
+  {ingredientId:"oil" as const,unit:"L" as const,quantity:1,costCents:null,version:1},
+ ];
+ const snapshot=costRecipe(recipe,[],prices);
+ assert.equal(snapshot.ingredients[0].batchCostCents,1);
+ assert.equal(snapshot.ingredients[1].batchCostCents,null);
+ assert.equal(snapshot.batchCostCents,null);assert.equal(snapshot.perServingCostCents,null);
+ const complete=costRecipe({...recipe,lines:[recipe.lines[0]]},[],prices);
+ assert.equal(complete.batchCostCents,1);assert.equal(complete.perServingCostCents,1);
 });
 test("sales preserve blanks, persist corrections once per date and never change inventory",()=>{
  const dir=mkdtempSync(join(tmpdir(),"dapur-sales-"));const path=join(dir,"test.sqlite");const inventory=openInventoryStore(path);let store=openSalesStore(path);const raw=new Database(path);

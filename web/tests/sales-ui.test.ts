@@ -28,6 +28,18 @@ test("sales entry exposes business date, a scan-friendly table, validation and e
  assert.match(source,/window\.confirm\("Discard your unsaved sales changes\?"\)/);
 });
 
+test("invalid quantity text remains visible and failed sales saves retain the draft",()=>{
+ const invalidBranch=source.indexOf("if(quantity===undefined){");
+ const invalidReturn=source.indexOf("return;",invalidBranch);
+ assert.ok(invalidBranch>=0&&invalidReturn>invalidBranch);
+ assert.ok(source.indexOf("setQuantityTexts(current=>({...current,[menu.id]:text}));",invalidBranch)<invalidReturn);
+ assert.ok(source.indexOf("setQuantityErrors(current=>({...current,[menu.id]:\"Enter a whole number",invalidBranch)<invalidReturn);
+ const catchBlock=source.slice(source.indexOf("async function saveSales"),source.indexOf("async function fillMissingFinancials"));
+ assert.match(catchBlock,/catch\(e\)\{setError\(e instanceof Error\?e\.message:"Could not save sales\. Please try again\."\);\}/);
+ assert.doesNotMatch(catchBlock,/catch\(e\)\{[^}]*setDraft/);
+ assert.match(catchBlock,/setBusy\(false\)/);
+});
+
 test("daily sales content follows the requested hierarchy without repeated summary cards",()=>{
  const sections=["<h1 className=","<form onSubmit={saveSales}","aria-label=\"Sales summary\"","id=\"profit-estimate-heading\"","id=\"menu-financials-heading\"","Historical sales records"].map(marker=>source.indexOf(marker));
  assert.ok(sections.every(index=>index>=0));

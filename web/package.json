@@ -11,6 +11,7 @@
     "test:inventory": "tsx --test tests/inventory.test.ts",
     "test:sales": "tsx --test tests/sales.test.ts",
     "test:sales-ui": "tsx --test tests/sales-ui.test.ts tests/sales-input.test.ts",
+    "test:production-readiness": "npm run test:sales && npm run test:sales-ui && npm run test:spreadsheet && npm run typecheck",
     "import:demo-sales": "tsx scripts/import-demo-sales.ts",
     "test:forecast": "tsx --test tests/forecast.test.ts",
     "test:planning": "tsx --test tests/planning.test.ts",
