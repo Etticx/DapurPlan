@@ -225,7 +225,9 @@ This repository includes instructions for running the forecast API on a **protec
 
 | Name | Role | GitHub |
 | --- | --- | --- |
-| To be provided | To be provided | To be provided |
+| Muhammad Amal Irfan bin Shaharuddin | Software Development, Quality Assurance | (https://github.com/aishzy) |
+| Muhammad Alif Asyraf bin Mohd Azlan | Machine Learning, Software Development  | (https://github.com/Etticx) |
+| Muhammad Faiz Aiman bin Muhamad |  Software Development                       | (----) |
 
 ---
 
