@@ -72,3 +72,27 @@ test("reimporting an unchanged sales CSV is idempotent and does not alter invent
   assert.equal(sales.history(date).length,1);assert.deepEqual(inventory.list(),inventoryBefore);
  }finally{sales.close();inventory.close();rmSync(dir,{recursive:true,force:true});}
 });
+
+test("sales import accepts legacy per-menu versions without weakening current version conflicts",()=>{
+ const dir=mkdtempSync(join(tmpdir(),"dapur-sales-legacy-csv-"));const path=join(dir,"test.sqlite");
+ const sales=openSalesStore(path);
+ try{
+  const legacyRows=parseCsv([
+   "date,version,menu_id,servings,sold_out",
+   ...["2025-10-01","2025-10-02"].flatMap(date=>salesMenus.map((menu,index)=>`${date},${index===0?4:2},${menu.id},${20+index},false`)),
+  ].join("\n")).rows;
+  assert.deepEqual(importSalesRows(legacyRows,"owner",sales),{imported:10,errors:[]});
+  assert.equal(sales.day("2025-10-01").version,1);
+  assert.equal(sales.day("2025-10-02").version,1);
+
+  const currentRows=parseCsv([
+   "date,version,menu_id,servings,sold_out",
+   ...["2025-10-03","2025-10-04"].flatMap((date,dateIndex)=>salesMenus.map((menu,index)=>`${date},${dateIndex===1&&index===0?1:0},${menu.id},${30+index},false`)),
+  ].join("\n")).rows;
+  const result=importSalesRows(currentRows,"owner",sales);
+  assert.equal(result.imported,salesMenus.length);
+  assert.ok(result.errors.length>0);
+  assert.equal(sales.day("2025-10-03").version,1);
+  assert.equal(sales.day("2025-10-04").version,0);
+ }finally{sales.close();rmSync(dir,{recursive:true,force:true});}
+});
