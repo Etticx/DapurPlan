@@ -1,19 +1,19 @@
 ingredient_id,ingredient_name,version,price_unit,price_quantity,cost_rm
-rice,Uncooked rice,0,kg,1,6.15
-chicken,Raw boneless chicken,0,kg,1,18.45
-cucumber,Cucumber,0,kg,1,4.10
-oil,Cooking oil,0,L,1,6.15
-soy,Soy sauce,0,L,1,8.20
-noodles,Fresh kuey teow noodles,0,kg,1,4.10
-egg,Eggs,0,pieces,30,13.84
-sprouts,Bean sprouts,0,kg,1,5.00
-coconut,Coconut milk,0,L,1,4.50
-sambal,Prepared sambal,0,kg,1,8.00
-peanuts,Peanuts,0,kg,1,12.00
-anchovies,Dried anchovies,0,kg,1,50.00
-coffee,Ground coffee,0,kg,1,56.00
-sugar,Sugar,0,kg,1,4.50
-water,Water (not stock-tracked),0,L,1,0.10
-ice,Ice,0,kg,1,0.60
-tea,Tea bags,0,pieces,100,8.20
-lemon,Lemons,0,pieces,1,0.80
+rice,Uncooked rice,1,kg,1,6.15
+chicken,Raw boneless chicken,1,kg,1,18.45
+cucumber,Cucumber,1,kg,1,4.10
+oil,Cooking oil,1,L,1,6.15
+soy,Soy sauce,1,L,1,8.20
+noodles,Fresh kuey teow noodles,1,kg,1,4.10
+egg,Eggs,2,pieces,30,13.84
+sprouts,Bean sprouts,1,kg,1,5.00
+coconut,Coconut milk,1,L,1,4.50
+sambal,Prepared sambal,1,kg,1,8.00
+peanuts,Peanuts,1,kg,1,12.00
+anchovies,Dried anchovies,1,kg,1,50.00
+coffee,Ground coffee,1,kg,1,56.00
+sugar,Sugar,1,kg,1,4.50
+water,Water (not stock-tracked),1,L,1,0.10
+ice,Ice,1,kg,1,0.60
+tea,Tea bags,1,pieces,100,8.20
+lemon,Lemons,1,pieces,1,0.80
