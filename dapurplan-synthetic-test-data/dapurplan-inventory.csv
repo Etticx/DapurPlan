@@ -1,18 +1,18 @@
 batch_id,version,ingredient_id,ingredient_name,quantity,unit,count_date,expiry_date,pack_quantity,pack_unit,pack_label,pack_cost_cents
-2fc31176-e2cb-535f-b363-9dd44b29d7e7,1,rice,Uncooked rice,12,kg,2026-10-24,2027-01-22,5,kg,bag,
-5bdd36d2-f641-5c13-9d24-7cfffdca4bb8,1,chicken,Raw boneless chicken,5,kg,2026-10-24,2026-10-27,1,kg,pack,
-25669d9a-76d9-58ad-a541-cb02d159cee5,1,cucumber,Cucumber,4,kg,2026-10-24,2026-10-28,1,kg,kg purchase,
-716a2ac6-8392-5397-b910-457e7acbe70d,1,oil,Cooking oil,8,L,2026-10-24,2027-01-22,5,L,bottle,
-159475f1-354c-573f-950e-af7a15097bd2,1,soy,Soy sauce,3,L,2026-10-24,2027-01-22,1,L,bottle,
-20addc48-1dd0-535f-a6ed-046c6efe7b2b,1,noodles,Fresh kuey teow noodles,5,kg,2026-10-24,2026-10-27,1,kg,pack,
-068cd78d-6cac-52c3-8b26-af64302ea59b,1,egg,Eggs,90,pieces,2026-10-24,2026-11-03,30,pieces,tray,
-c7a1b51e-4c3c-5213-9ea6-9db4dea9f6b6,1,sprouts,Bean sprouts,2,kg,2026-10-24,2026-10-26,1,kg,pack,
-1011992e-a702-5d86-b790-10357c53b195,1,coconut,Coconut milk,3,L,2026-10-24,2026-10-29,1,L,carton,
-459f0588-6e64-5716-99a6-9f96a7ec518f,1,sambal,Prepared sambal,3,kg,2026-10-24,2026-11-05,1,kg,pack,
-4be3ff5a-771e-5f15-8c5d-dcf34d700093,1,peanuts,Peanuts,2,kg,2026-10-24,2027-01-22,1,kg,pack,
-8f50974e-c480-5bc9-a341-81ed2c727567,1,anchovies,Dried anchovies,1,kg,2026-10-24,2027-01-22,0.5,kg,pack,
-ccc1b06b-7473-535d-a499-c01b726f6ff4,1,coffee,Ground coffee,2,kg,2026-10-24,2027-01-22,0.5,kg,pack,
-e6bbb26b-48bd-53ce-95a6-a12db5733e45,1,sugar,Sugar,4,kg,2026-10-24,2027-01-22,1,kg,bag,
-024c8406-a37b-59df-b594-dbeb40003d41,1,ice,Ice,10,kg,2026-10-24,2026-10-27,5,kg,bag,
-d837b9d7-ce5e-5d03-9483-8b5843d3359d,1,tea,Tea bags,100,pieces,2026-10-24,2027-01-22,100,pieces,box,
-e6aad082-a568-5152-9534-706f1446bdc3,1,lemon,Lemons,20,pieces,2026-10-24,2026-11-01,1,pieces,piece,
+,,rice,Uncooked rice,12,kg,2026-10-24,,5,kg,bag,615
+,,chicken,Raw boneless chicken,5,kg,2026-10-24,,1,kg,pack,1845
+,,cucumber,Cucumber,4,kg,2026-10-24,,1,kg,kg purchase,410
+,,oil,Cooking oil,8,L,2026-10-24,,5,L,bottle,615
+,,soy,Soy sauce,3,L,2026-10-24,,1,L,bottle,820
+,,noodles,Fresh kuey teow noodles,5,kg,2026-10-24,,1,kg,pack,410
+,,egg,Eggs,90,pieces,2026-10-24,,30,pieces,tray,1384
+,,sprouts,Bean sprouts,2,kg,2026-10-24,,1,kg,pack,500
+,,coconut,Coconut milk,3,L,2026-10-24,,1,L,carton,450
+,,sambal,Prepared sambal,2,kg,2026-10-24,,1,kg,pack,800
+,,peanuts,Peanuts,1,kg,2026-10-24,,1,kg,pack,1200
+,,anchovies,Dried anchovies,1,kg,2026-10-24,,0.5,kg,pack,2500
+,,coffee,Ground coffee,1,kg,2026-10-24,,0.5,kg,pack,2800
+,,sugar,Sugar,4,kg,2026-10-24,,1,kg,bag,450
+,,ice,Ice,8,kg,2026-10-24,,5,kg,bag,300
+,,tea,Tea bags,200,pieces,2026-10-24,,100,pieces,box,820
+,,lemon,Lemons,20,pieces,2026-10-24,,1,pieces,piece,80

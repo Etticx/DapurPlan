@@ -1,27 +1,27 @@
 menu_id,menu_name,category,version,batch_servings,menu_price_rm,ingredient_id,ingredient_name,ingredient_quantity,ingredient_unit
-chicken-rice,Chicken rice,Food,4,20,8.00,rice,Uncooked rice,2,kg
-chicken-rice,Chicken rice,Food,4,20,8.00,chicken,Raw boneless chicken,3,kg
-chicken-rice,Chicken rice,Food,4,20,8.00,cucumber,Cucumber,600,g
-chicken-rice,Chicken rice,Food,4,20,8.00,oil,Cooking oil,100,ml
-chicken-rice,Chicken rice,Food,4,20,8.00,soy,Soy sauce,100,ml
-kuey-teow,Fried kuey teow with egg,Food,2,10,8.50,noodles,Fresh kuey teow noodles,2,kg
-kuey-teow,Fried kuey teow with egg,Food,2,10,8.50,egg,Eggs,10,pieces
-kuey-teow,Fried kuey teow with egg,Food,2,10,8.50,sprouts,Bean sprouts,500,g
-kuey-teow,Fried kuey teow with egg,Food,2,10,8.50,oil,Cooking oil,150,ml
-kuey-teow,Fried kuey teow with egg,Food,2,10,8.50,soy,Soy sauce,150,ml
-nasi-lemak,Nasi lemak with egg,Food,2,20,5.60,rice,Uncooked rice,2,kg
-nasi-lemak,Nasi lemak with egg,Food,2,20,5.60,coconut,Coconut milk,800,ml
-nasi-lemak,Nasi lemak with egg,Food,2,20,5.60,egg,Eggs,20,pieces
-nasi-lemak,Nasi lemak with egg,Food,2,20,5.60,sambal,Prepared sambal,600,g
-nasi-lemak,Nasi lemak with egg,Food,2,20,5.60,cucumber,Cucumber,600,g
-nasi-lemak,Nasi lemak with egg,Food,2,20,5.60,peanuts,Peanuts,200,g
-nasi-lemak,Nasi lemak with egg,Food,2,20,5.60,anchovies,Dried anchovies,200,g
-kopi,Kopi O ais,Drink,2,10,3.00,coffee,Ground coffee,150,g
-kopi,Kopi O ais,Drink,2,10,3.00,sugar,Sugar,200,g
-kopi,Kopi O ais,Drink,2,10,3.00,water,Water (not stock-tracked),2,L
-kopi,Kopi O ais,Drink,2,10,3.00,ice,Ice,1.5,kg
-tea,Iced lemon tea,Drink,2,10,2.50,tea,Tea bags,10,pieces
-tea,Iced lemon tea,Drink,2,10,2.50,lemon,Lemons,2.5,pieces
-tea,Iced lemon tea,Drink,2,10,2.50,sugar,Sugar,150,g
-tea,Iced lemon tea,Drink,2,10,2.50,water,Water (not stock-tracked),2,L
-tea,Iced lemon tea,Drink,2,10,2.50,ice,Ice,1.5,kg
+chicken-rice,Chicken rice,Food,1,20,8.00,rice,Uncooked rice,2,kg
+chicken-rice,Chicken rice,Food,1,20,8.00,chicken,Raw boneless chicken,3,kg
+chicken-rice,Chicken rice,Food,1,20,8.00,cucumber,Cucumber,600,g
+chicken-rice,Chicken rice,Food,1,20,8.00,oil,Cooking oil,100,ml
+chicken-rice,Chicken rice,Food,1,20,8.00,soy,Soy sauce,100,ml
+kuey-teow,Fried kuey teow with egg,Food,1,10,8.50,noodles,Fresh kuey teow noodles,2,kg
+kuey-teow,Fried kuey teow with egg,Food,1,10,8.50,egg,Eggs,10,pieces
+kuey-teow,Fried kuey teow with egg,Food,1,10,8.50,sprouts,Bean sprouts,500,g
+kuey-teow,Fried kuey teow with egg,Food,1,10,8.50,oil,Cooking oil,150,ml
+kuey-teow,Fried kuey teow with egg,Food,1,10,8.50,soy,Soy sauce,150,ml
+nasi-lemak,Nasi lemak with egg,Food,1,20,7.00,rice,Uncooked rice,2,kg
+nasi-lemak,Nasi lemak with egg,Food,1,20,7.00,coconut,Coconut milk,800,ml
+nasi-lemak,Nasi lemak with egg,Food,1,20,7.00,egg,Eggs,20,pieces
+nasi-lemak,Nasi lemak with egg,Food,1,20,7.00,sambal,Prepared sambal,600,g
+nasi-lemak,Nasi lemak with egg,Food,1,20,7.00,cucumber,Cucumber,600,g
+nasi-lemak,Nasi lemak with egg,Food,1,20,7.00,peanuts,Peanuts,200,g
+nasi-lemak,Nasi lemak with egg,Food,1,20,7.00,anchovies,Dried anchovies,200,g
+kopi,Kopi O ais,Drink,1,10,2.50,coffee,Ground coffee,150,g
+kopi,Kopi O ais,Drink,1,10,2.50,sugar,Sugar,200,g
+kopi,Kopi O ais,Drink,1,10,2.50,water,Water (not stock-tracked),2,L
+kopi,Kopi O ais,Drink,1,10,2.50,ice,Ice,1.5,kg
+tea,Iced lemon tea,Drink,1,10,3.00,tea,Tea bags,10,pieces
+tea,Iced lemon tea,Drink,1,10,3.00,lemon,Lemons,2.5,pieces
+tea,Iced lemon tea,Drink,1,10,3.00,sugar,Sugar,150,g
+tea,Iced lemon tea,Drink,1,10,3.00,water,Water (not stock-tracked),2,L
+tea,Iced lemon tea,Drink,1,10,3.00,ice,Ice,1.5,kg
