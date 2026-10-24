@@ -1,166 +1,246 @@
 # DapurPlan
 
-DapurPlan helps a restaurant forecast servings, calculate ingredient needs, and review preparation plans.
+DapurPlan helps small food businesses forecast daily servings, estimate ingredient requirements, and review stock-aware preparation plans.
 
-- **Frontend and app backend:** Next.js in `web/` (login, SQLite database, recipes, sales, inventory and approvals).
-- **ML backend:** FastAPI in `src/dapurplan/api.py` (loads the saved Random Forest pipeline and predicts servings).
+---
 
-## Run locally on Windows (PowerShell)
+## Team Information
 
-Use **two separate terminals** and keep both running. Start each terminal in the
-main `DapurPlan` folder, where `pyproject.toml` and the `web` folder are located.
+| Field | Details |
+| --- | --- |
+| **Team Name** | S.E.E.S |
+| **Team Domain** | Domain 2 |
+| **SDG Track (1–17)** | SDG 12 |
+| **Team Leader** | Muhammad Amal Irfan Bin Shaharuddin|
+| **University** | Universiti Malaysia Terengganu (UMT), Universiti Teknologi MARA (UITM) |
+| **Number of Members** | 3 Members |
 
-### First-time setup
+## Links
 
-Install Node.js 22, Python 3.12 and uv. The local setup was tested with Node.js
-22.12.0 and Python 3.12.8. Verify these model files are inside `model/`:
+| Resource | Link |
+| --- | --- |
+| GitHub Repository | [Etticx/DapurPlan](https://github.com/Etticx/DapurPlan) |
+| Live Demo | Not deployed |
+| RunPod Endpoint | Not deployed; see the [CPU Pod guide](runpod/README.md) |
+| Slide Deck | To be provided |
+| Demo Video | To be provided |
 
-- `sales_forecast_pipeline.joblib`
-- `requirements.txt`
-- `training_report.json`
-- `example_input.json`
+---
 
-Install frontend dependencies:
+## Overview
+
+### Problem
+
+Small food businesses must decide how much to prepare and what ingredients to buy with limited time and incomplete records. Guessing demand can contribute to shortages, unnecessary purchases, and food waste. Recipes, sales, and stock information are often tracked separately, making preparation decisions harder to review.
+
+### Solution
+
+DapurPlan brings recipe, sales, ingredient-price, and inventory records into one workspace. Its one-day-ahead machine-learning forecast uses recent sales patterns to estimate servings; the app translates a reviewed forecast into ingredient needs and stock shortages. Forecasts are decision support, not guarantees: the checked-in model was trained and evaluated on synthetic data, and its accuracy has not been established for a real restaurant.
+
+### Key Features
+
+- **Demand forecasting** — Predicts servings for up to five menu items from recent sales features.
+- **Preparation planning** — Calculates recipe-based ingredient needs, compares them with usable stock, and supports draft and owner-approved plans.
+- **Recipes and costing** — Maintains menu recipes, selling prices, ingredient pack costs, and saved financial snapshots.
+- **Sales and expenses** — Records daily servings, sold-out status, operating expenses, and estimated sales and profit summaries.
+- **Inventory management** — Tracks ingredient batches, count and expiry dates, purchase packs, and change history.
+- **Spreadsheet data** — Exports and imports CSV files for supported records, with row-level validation and change history. Planning CSVs are export-only.
+
+### Tech Stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend and app backend | Next.js App Router, React, TypeScript, Tailwind CSS |
+| Forecast API | Python, FastAPI, Pydantic |
+| Database | SQLite via `better-sqlite3` |
+| AI / Compute | Scikit-learn Random Forest model; CPU inference locally or on an optionally configured RunPod CPU Pod |
+| Hosting / Development | Local development is supported. Replit and RunPod deployment links are not configured yet. |
+
+---
+
+## Project Structure
+
+```text
+.
+├── dapurplan-synthetic-test-data/  # Spreadsheet CSV fixtures and import notes
+├── model/                          # Forecast pipeline, report, and example input
+├── runpod/                         # Protected CPU Pod service and deployment guide
+├── scripts/
+│   └── train_forecast.py           # Optional local retraining from saved sales
+├── src/dapurplan/
+│   ├── api.py                      # FastAPI prediction service
+│   └── forecast_model.py           # Shared model feature definitions
+├── tests/                          # Python API, training, and deployment tests
+├── web/
+│   ├── src/app/                    # Next.js pages and API routes
+│   ├── src/components/             # Workspace and data-entry UI
+│   ├── src/lib/                    # SQLite stores, validation, forecasting
+│   ├── tests/                      # Web application tests
+│   └── docs/                       # Feature and integration notes
+├── requirements-api.txt            # Python API dependencies
+├── requirements-dev.txt            # Python API and test dependencies
+├── pyproject.toml                  # Python project configuration
+└── README.md
+```
+
+### Architecture
+
+```text
+Browser
+  └──► Next.js workspace ──► SQLite business database
+          │
+          └──► FastAPI forecast service ──► saved scikit-learn pipeline
+               (localhost by default; protected RunPod CPU Pod is optional)
+```
+
+The forecast service receives prepared features and does not read or modify the business database. Next.js assembles those features from saved sales. Approved plans do not automatically deduct inventory.
+
+---
+
+## How to Run
+
+### Requirements
+
+- Node.js 22 (the web application was tested with Node.js 22.12.0)
+- Python 3.12
+- `uv` for Python environment and dependency setup
+
+### Run locally
+
+From the repository root, install the dependencies:
+
+```bash
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -r requirements-dev.txt
+npm --prefix web install
+```
+
+On Windows PowerShell, use the Windows virtual-environment path:
 
 ```powershell
+uv venv --python 3.12 .venv
+uv pip install --python .venv\Scripts\python.exe -r requirements-dev.txt
 cd web
 npm install
 cd ..
 ```
 
-Create the Python environment **only if it does not already exist**, then install
-backend dependencies from the project root:
+Start the web app and forecast API in separate terminals from the repository root.
 
-```powershell
-if (!(Test-Path "venv/Scripts/python.exe")) {
-    uv venv --python 3.12 venv
-}
-uv pip install --python venv/Scripts/python.exe -r requirements-dev.txt
-```
+**Terminal 1 — web app**
 
-You only need to install dependencies again when they change.
-
-### Terminal 1: frontend
-
-From the main `DapurPlan` folder:
-
-```powershell
+```bash
 cd web
 npm run dev
 ```
 
-Open **http://127.0.0.1:4000**.
+Open <http://127.0.0.1:4000>.
 
-Demo accounts:
+**Terminal 2 — forecast API**
 
-- Owner: username `owner`, password `123`.
-- Staff: username `staff`, password `123`.
+```bash
+PYTHONPATH=src .venv/bin/python -m uvicorn dapurplan.api:app --host 127.0.0.1 --port 8000
+```
 
-These are fixed prototype accounts, not production account management.
-
-### Terminal 2: ML backend
-
-Open another terminal in the main `DapurPlan` folder:
+On Windows PowerShell:
 
 ```powershell
 $env:PYTHONPATH = "src"
-.\venv\Scripts\python.exe -m uvicorn dapurplan.api:app --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python.exe -m uvicorn dapurplan.api:app --host 127.0.0.1 --port 8000
 ```
 
-Wait for `Application startup complete` before generating a forecast.
-You do not need to activate the environment because the command calls its Python directly.
+Wait for the API startup to complete before generating a forecast. The API documentation is at <http://127.0.0.1:8000/docs>; health information is at <http://127.0.0.1:8000/health>.
 
-- API documentation: **http://127.0.0.1:8000/docs**.
-- Service health: **http://127.0.0.1:8000/health**.
+### Demo accounts
 
-The frontend calls FastAPI from the Next.js server. Its default address is
-`http://127.0.0.1:8000`. To change it, set `FORECAST_API_URL` in `web/.env.local`
-and restart the frontend. This address must not use a `NEXT_PUBLIC_` variable.
+- Owner: username `owner`, password `123`
+- Staff: username `staff`, password `123`
 
-### Using and stopping the app
+These fixed accounts are for local prototype use only. They are not production authentication. Keep the app private and bound to localhost unless proper deployment security is configured.
 
-1. Sign in at http://127.0.0.1:4000.
-2. Save complete sales for seven consecutive days for all five menu items.
-3. Open **Tomorrow’s plan**, generate a forecast, review preparation and shopping,
-   then save a draft or approve as owner.
+### First use
 
-Recipes, sales, stock and plans persist in `web/data/dapurplan.sqlite`.
-There is no automatic stock deduction when a plan is approved.
-Stop each server with **Ctrl+C** in its terminal. Saved database records remain.
+1. Sign in to the web app.
+2. Record complete sales for at least seven consecutive days for all five menu items.
+3. Configure recipe prices and ingredient prices; record inventory counts.
+4. Open **Tomorrow’s plan**, generate a forecast, review preparation quantities and ingredient needs, then save a draft or approve the plan as owner.
 
-If `npm run dev` reports a missing `package.json`, run it inside `web/`.
-If forecasting reports that the model service is unavailable, check Terminal 2.
-If a port is already in use, check whether that server is already running before
-starting another copy.
+To try the spreadsheet page, use the fixtures in [`dapurplan-synthetic-test-data/`](dapurplan-synthetic-test-data/). Import recipes, ingredient prices, inventory, sales, and expenses in that order. Imports apply CSV values over current values for matching records; use a test database if you do not want to overwrite workspace data. Planning CSVs are export-only.
 
-### Test the model API directly (optional)
+Application data is stored in `web/data/dapurplan.sqlite` by default. Set `DAPURPLAN_DB_PATH` to use a different SQLite file. The app creates the database schema on first use.
 
-With the backend running, open another terminal in the project root:
+### Configuration
 
-```powershell
-Invoke-RestMethod -Uri http://127.0.0.1:8000/predict -Method Post -ContentType 'application/json' -Body (Get-Content model/example_input.json -Raw)
+See [`web/.env.example`](web/.env.example). For local development, the forecast API defaults to `http://127.0.0.1:8000`. To use another forecast service, set `FORECAST_API_URL` in `web/.env.local` and restart the web app. `FORECAST_API_KEY` is only needed when connecting to the protected RunPod service; keep it server-side and never use a `NEXT_PUBLIC_` variable.
+
+---
+
+## Run Tests
+
+From the repository root:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Or open `/docs`, expand POST `/predict`, choose **Try it out**, paste
-`model/example_input.json`, then **Execute**. The body accepts one to five distinct menu items.
+For the web application:
 
-## Prediction contract
-
-Exact input columns: `item`, `day_of_week`, `sales_yesterday`, `sales_last_week`,
-`average_previous_7_days`. Monday=0 through Sunday=6, verified against the team's
-training notebook (`date.dt.dayofweek`). Inputs are relative to the target date:
-for tomorrow, yesterday is today's completed sales, last week is target date minus
-7 days, and the average uses the 7 completed calendar days before the target date.
-Historical missing data must not silently become zero. The service accepts prepared
-features only; Next.js builds them from saved database records. Sold-out flags are not
-features of this saved model.
-
-Output `predicted_servings` is a non-negative decimal, matching notebook clipping.
-The app rounds preparation defaults up to whole servings and lets the owner adjust them before approval.
-`model_id` is the artifact's SHA-256. `synthetic_model` identifies whether the saved
-forecast used synthetic-only training data; the checked-in model reports `true`.
-Its test MAE is 3.088 on synthetic regular-demand data, not verified restaurant
-performance. After successful local retraining, saved forecasts identify the real-data
-model used at that time.
-
-The full fitted preprocessing pipeline is used. Model libraries match the export's
-`model/requirements.txt`; incompatible scikit-learn versions fail at startup.
-The export recorded Python 3.13.16; this local service is tested with Python 3.12.8.
-Only load the trusted team artifact: joblib files can execute Python during loading.
-
-This service is bound to loopback and has no deployed authentication/CORS integration.
-Add service authentication before external hosting. Never expose it publicly as-is.
-Frontend login and owner approval remain in the Next.js app.
-
-### Training from real sales
-
-The checked-in model is trained on synthetic data and is not a validated restaurant
-forecast. To retrain locally, collect at least 84 complete, non-demo sales days in
-the SQLite database, then run from the repository root:
-
-```powershell
-.\venv\Scripts\python.exe scripts\train_forecast.py --database web\data\dapurplan.sqlite
+```bash
+cd web
+npm run test:production-readiness
 ```
 
-Training reads the database in read-only mode, excludes imported demo-provenance
-days, incomplete days and sold-out observations, and validates chronologically
-against a last-week baseline. The model is replaced only when the Random Forest
-improves validation MAE by at least 5% without materially regressing any menu;
-otherwise the validated baseline is saved. The report includes the selected model
-and model-artifact hash. Restart FastAPI after retraining. With fewer than 84 complete
-days the command stops without changing the existing model.
+The web production-readiness script runs the sales, sales UI, and spreadsheet tests, then TypeScript typechecking. Other focused web test commands are listed in [`web/package.json`](web/package.json).
 
-## Tests
+---
 
-```powershell
-$env:PYTHONPATH = "src"
-.\venv\Scripts\python.exe -m unittest discover -s tests -v
-```
+## How We Use Replit
 
-Tests compare HTTP responses against direct pipeline predictions, validate five-item
-batches, reject invalid inputs, check clipping/non-finite outputs and missing-model startup.
-No sales records, stock or trained parameters are changed by these tests.
+Replit hosting and team use have not been verified or configured in this repository. No `.replit` run configuration, live Replit demo URL, or proof-of-use document is currently included. If the team uses Replit, document the actual development/deployment workflow here and store secrets in Replit Secrets rather than in source files.
 
-## Runpod deployment
+📄 Proof of use: not yet provided. Add the official, completed document under `submission/` when available.
 
-See [the Runpod CPU deployment guide](runpod/README.md) for the model service setup and Replit connection.
+## How We Use RunPod
+
+This repository includes instructions for running the forecast API on a **protected RunPod CPU Pod**; it does not use a RunPod GPU or Serverless endpoint. No deployed endpoint is currently listed. The Pod service requires a private `FORECAST_API_KEY` of at least 32 characters and accepts authenticated prediction requests. See [`runpod/README.md`](runpod/README.md) for setup and connection details.
+
+📄 Proof of use: not yet provided. Add the official, completed document under `submission/` if RunPod is used for the project.
+
+---
+
+## Challenges & Learnings
+
+- Keeping recipe, sales, and inventory data consistent requires validation and auditable change history.
+- Forecasting requires complete, correctly dated sales history; missing data should not silently be treated as zero.
+- A model evaluated only on synthetic data is not evidence of real-world restaurant accuracy. Real-world validation is still needed.
+
+## Future Improvements
+
+- [ ] Evaluate forecasts using verified, consented restaurant sales data and monitor performance over time.
+- [ ] Replace fixed demo accounts with secure user and workspace management before deployment.
+- [ ] Provision and verify hosted services and persistent database storage before publishing live links.
+- [ ] Add a workflow for importing or exporting preparation plans if supported by product requirements.
+
+## Team
+
+| Name | Role | GitHub |
+| --- | --- | --- |
+| To be provided | To be provided | To be provided |
+
+---
+
+## Submission Checklist
+
+- [ ] Team name, domain, SDG track, leader, university, and member count confirmed
+- [ ] Slide deck and demo video links added
+- [ ] Replit use and proof documented, if applicable
+- [ ] RunPod use and proof documented, if applicable
+- [ ] Official preliminary submission and technology declaration completed
+- [ ] Required submission documents added and renamed for the team
+- [x] Local web app and forecast API run instructions documented
+- [ ] Deployment and public demo links verified before publication
+- [x] No API keys or service secrets are included in this README
+
+## License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
