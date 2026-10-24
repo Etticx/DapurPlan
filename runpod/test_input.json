@@ -1,0 +1,37 @@
+[
+  {
+    "item": "Chicken rice",
+    "day_of_week": 5,
+    "sales_yesterday": 40,
+    "sales_last_week": 38,
+    "average_previous_7_days": 39
+  },
+  {
+    "item": "Fried kuey teow with egg",
+    "day_of_week": 5,
+    "sales_yesterday": 40,
+    "sales_last_week": 38,
+    "average_previous_7_days": 39
+  },
+  {
+    "item": "Nasi lemak with egg",
+    "day_of_week": 5,
+    "sales_yesterday": 40,
+    "sales_last_week": 38,
+    "average_previous_7_days": 39
+  },
+  {
+    "item": "Kopi O ais",
+    "day_of_week": 5,
+    "sales_yesterday": 40,
+    "sales_last_week": 38,
+    "average_previous_7_days": 39
+  },
+  {
+    "item": "Iced lemon tea",
+    "day_of_week": 5,
+    "sales_yesterday": 40,
+    "sales_last_week": 38,
+    "average_previous_7_days": 39
+  }
+]
