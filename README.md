@@ -243,12 +243,12 @@ The API currently runs in the background through `nohup`. Closing the terminal d
 
 ## Submission Checklist
 
-- [ ] Team name, domain, SDG track, leader, university, and member count confirmed
-- [ ] Slide deck and demo video links added
+- [x] Team name, domain, SDG track, leader, university, and member count confirmed
+- [x] Slide deck and demo video links added
 - [x] Replit use and proof documented, if applicable
 - [x] RunPod use and proof documented, if applicable
-- [ ] Official preliminary submission and technology declaration completed
-- [ ] Required submission documents added and renamed for the team
+- [x] Official preliminary submission and technology declaration completed
+- [x] Required submission documents added and renamed for the team
 - [x] Local web app and forecast API run instructions documented
 - [x] Replit public demo and authenticated RunPod forecast connection documented
 - [x] No API keys or service secrets are included in this README
