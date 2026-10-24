@@ -126,14 +126,17 @@ stock-tracked. The recipe editor shows ingredient batch costs and estimated cost
 serving; missing prices leave totals explicitly incomplete.
 
 Daily sales use one shared calculation for the page, saved summaries, and trends. Revenue
-is each saved selling-price snapshot multiplied by servings sold. Ingredient cost of
-sales is each saved per-serving recipe-cost snapshot multiplied by servings sold; it is
+is the saved selling-price snapshot in sen multiplied by servings sold. Each recipe
+ingredient line cost is rounded to the nearest sen from its saved quantity and ingredient
+price; those rounded line costs are summed for the batch, then batch cost divided by
+recipe servings is rounded to the nearest sen for per-serving cost. Ingredient cost of
+sales is that saved per-serving recipe-cost snapshot multiplied by servings sold; it is
 not based on servings prepared, ingredient purchases, stock counts, or inventory
-movements. Recipe batch ingredient costs and per-serving costs are rounded to the nearest
-sen when snapshots are created; saved money and displayed totals use integer sen.
-Profit contribution per menu item is its revenue minus its ingredient cost of sales.
-Gross profit is total revenue minus ingredient cost of sales. Profit margin is profit
-divided by revenue and is unavailable when revenue is zero or an input is missing.
+movements. Saved money and displayed totals use integer sen. Profit contribution per
+menu item is its revenue minus its ingredient cost of sales. Gross profit is total
+revenue minus ingredient cost of sales. Gross margin and estimated net margin are each
+their respective profit divided by revenue; margins are unavailable when revenue is
+zero or the corresponding inputs are unavailable.
 
 Recorded other operating expenses are kept separate from ingredient cost of sales.
 Estimated net profit is gross profit minus the saved other-expense list, and remains
@@ -141,7 +144,9 @@ unavailable until that list is saved (save an empty list to confirm that no othe
 expenses were recorded). It is only an estimate, not complete accounting net profit:
 expenses not recorded in DapurPlan are excluded. Missing prices, recipe costs, or
 expense records are not treated as zero. Negative per-item contribution remains
-negative and is highlighted. Record expenses by category, amount, and optional note.
+negative and is highlighted. Estimated net profit is unavailable if gross profit or the
+saved expense list is unavailable; a saved empty expense list contributes RM 0.00.
+Record expenses by category, amount, and optional note.
 Daily, weekly, and monthly trends use these same definitions. Expense edits use a
 version check and are retained in application history.
 
