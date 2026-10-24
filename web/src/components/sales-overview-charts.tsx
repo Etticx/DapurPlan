@@ -2,18 +2,29 @@
 
 import {useMemo,useState} from "react";
 import type {SalesOverviewPoint} from "@/lib/sales";
-import {addDays,malaysiaDate} from "@/lib/inventory";
+import {addDays} from "@/lib/inventory";
 import {addCents} from "@/lib/sales-financials";
 
 type Range="7"|"30"|"365";
 type Point={date:string;label:string;servings:number|null;revenue:number|null;grossProfit:number|null};
-const currency=new Intl.NumberFormat("en-MY",{style:"currency",currency:"MYR",maximumFractionDigits:0});
-const moneyExact=new Intl.NumberFormat("en-MY",{style:"currency",currency:"MYR"});
+const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function shortDate(date:string,year=false){
- return new Date(`${date}T12:00:00+08:00`).toLocaleDateString("en-MY",{day:"numeric",month:"short",...(year?{year:"2-digit"}:{}),timeZone:"Asia/Kuala_Lumpur"});
+ const [,month,day]=date.split("-");const yearLabel=year?` '${date.slice(2,4)}`:"";
+ return `${Number(day)} ${months[Number(month)-1]}${yearLabel}`;
 }
-function compactCurrency(sen:number){return currency.format(sen/100);}
+function groupedRinggit(value:number){
+ const digits=String(Math.abs(value));
+ return digits.replace(/\B(?=(\d{3})+(?!\d))/g,",");
+}
+function compactCurrency(sen:number){
+ const value=Math.round(sen/100);
+ return `RM ${value<0?"-":""}${groupedRinggit(value)}`;
+}
+function exactCurrency(sen:number){
+ const value=Math.abs(sen);const ringgit=Math.floor(value/100);const cents=value%100;
+ return `RM ${sen<0?"-":""}${groupedRinggit(ringgit)}.${String(cents).padStart(2,"0")}`;
+}
 function pathForLine(points:{x:number;y:number;value:number|null}[]){
  const segments:string[]=[];let segment="";
  for(const point of points){
@@ -43,7 +54,7 @@ function ServingsLineChart({points}:{points:Point[]}){
   <title>Servings sold</title>
   {ticks.map(fraction=>{const y=top+chartHeight*(1-fraction);return <g key={fraction}><line x1={left} x2={width-right} y1={y} y2={y} stroke="#e2e8f0" strokeDasharray="3 4"/><text x={left-8} y={y+4} textAnchor="end" fill="#64748b" fontSize="11">{Math.round(max*fraction)}</text></g>;})}
   <path d={path} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round"/>
-  {coords.map((point,index)=>point.value===null?null:<circle key={points[index].date} cx={point.x} cy={point.y} r="4" fill="#fff" stroke="#2563eb" strokeWidth="2"><title>{points[index].date}: {point.value} servings</title></circle>)}
+  {coords.map((point,index)=>point.value===null?null:<g key={points[index].date} aria-label={`${points[index].date}: ${point.value} servings`}><title>{points[index].date}: {point.value} servings</title><circle cx={point.x} cy={point.y} r="4" fill="#fff" stroke="#2563eb" strokeWidth="2"/></g>)}
   {points.map((point,index)=>labelIndices.has(index)?<text key={point.date} x={coords[index].x} y={height-8} textAnchor={index===0?"start":index===points.length-1?"end":"middle"} fill="#64748b" fontSize="11">{point.label}</text>:null)}
  </svg>;
 }
@@ -64,13 +75,14 @@ function SalesBarChart({points,metric}:{points:Point[];metric:"revenue"|"grossPr
   {points.map((point,index)=>{
    const value=point[metric];if(value===null)return null;
    const x=left+index*step+(step-barWidth)/2;const y=top+(max-value)/span*chartHeight;const barHeight=Math.abs(zeroY-y);
-   return <rect key={point.date} x={x} y={Math.min(y,zeroY)} width={barWidth} height={Math.max(value===0?1:0,barHeight)} rx="3" fill={metric==="revenue"?"#2563eb":value<0?"#dc2626":"#0f766e"}><title>{point.date}: {moneyExact.format(value/100)}</title></rect>;
+   const label=`${point.date}: ${exactCurrency(value)}`;
+   return <g key={point.date} aria-label={label}><title>{label}</title><rect x={x} y={Math.min(y,zeroY)} width={barWidth} height={Math.max(value===0?1:0,barHeight)} rx="3" fill={metric==="revenue"?"#2563eb":value<0?"#dc2626":"#0f766e"}/></g>;
   })}
   {points.map((point,index)=>labelIndices.has(index)?<text key={point.date} x={left+index*step+step/2} y={height-8} textAnchor={index===0?"start":index===points.length-1?"end":"middle"} fill="#64748b" fontSize="11">{point.label}</text>:null)}
  </svg>;
 }
 
-export function SalesOverviewCharts({data,endDate=malaysiaDate()}:{data:SalesOverviewPoint[];endDate?:string}){
+export function SalesOverviewCharts({data,endDate}:{data:SalesOverviewPoint[];endDate:string}){
  const [range,setRange]=useState<Range>("30");
  const points=useMemo(()=>{
   const days=Number(range);const first=addDays(endDate,-(days-1));const saved=new Map(data.map(point=>[point.date,point]));
