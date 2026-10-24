@@ -15,7 +15,7 @@ export function buildForecastInputs(targetDate:string,days:SalesDay[]):PreparedF
 export class ForecastServiceError extends Error {}
 export async function requestForecast(inputs:ForecastInput[],url=process.env.FORECAST_API_URL||"http://127.0.0.1:8000",fetcher:typeof fetch=fetch){
  let response:Response;
- try{response=await fetcher(`${url.replace(/\/$/,"")}/predict`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(inputs),signal:AbortSignal.timeout(15000),cache:"no-store"});}catch{throw new ForecastServiceError("The model service is unavailable. Start FastAPI on port 8000 and try again.");}
+ try{response=await fetcher(`${url.replace(/\/$/,"")}/predict`,{method:"POST",headers:{"Content-Type":"application/json",...(process.env.FORECAST_API_KEY?{Authorization:`Bearer ${process.env.FORECAST_API_KEY}`}:{})},body:JSON.stringify(inputs),signal:AbortSignal.timeout(15000),cache:"no-store"});}catch{throw new ForecastServiceError("The model service is unavailable. Start FastAPI on port 8000 and try again.");}
  if(!response.ok)throw new ForecastServiceError("The model service could not generate a forecast. Please check FastAPI and try again.");
  let body;try{body=await response.json();}catch{throw new ForecastServiceError("The model service returned an invalid response.");}
  if(typeof body?.model_id!=="string"||!/^[a-f0-9]{64}$/.test(body.model_id)||typeof body.synthetic_model!=="boolean"||!Array.isArray(body.predictions)||body.predictions.length!==salesMenus.length)throw new ForecastServiceError("The model response did not match the expected five menus.");

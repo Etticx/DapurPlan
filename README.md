@@ -160,3 +160,7 @@ $env:PYTHONPATH = "src"
 Tests compare HTTP responses against direct pipeline predictions, validate five-item
 batches, reject invalid inputs, check clipping/non-finite outputs and missing-model startup.
 No sales records, stock or trained parameters are changed by these tests.
+
+## Runpod deployment
+
+See [the Runpod CPU deployment guide](runpod/README.md) for the model service setup and Replit connection.
